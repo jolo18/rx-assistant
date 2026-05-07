@@ -39,7 +39,15 @@ if (import.meta.main) {
   const model = openrouter.chat(env.OPENROUTER_MODEL)
   const tools = createTools(env)
   const app = buildApp({ env, db, model, tools })
-  Bun.serve({ port: env.PORT, fetch: app.fetch })
+  Bun.serve({
+    port: env.PORT,
+    fetch: app.fetch,
+    // SSE responses outlive Bun's default 10s idle window. We rely on
+    // env.AI_TIMEOUT_MS + per-tool budgets (TOOL_TIMEOUT_MS) to cap upstream
+    // work; idleTimeout=0 means no socket-level timeout. F-2 / F-11 still
+    // cover hung upstreams + client disconnects.
+    idleTimeout: 0,
+  })
   log.info(
     { port: env.PORT, model: env.OPENROUTER_MODEL, dbPath: env.DATABASE_PATH },
     'rx-assistant backend listening',
