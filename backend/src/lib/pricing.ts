@@ -23,6 +23,7 @@ export type ModelPricing = {
 }
 
 export const KNOWN_MODELS: Record<string, ModelPricing> = {
+  // ─ Anthropic via OpenRouter ──────────────────────────────────────
   'anthropic/claude-sonnet-4.6': {
     inputPerMTok: 3,
     outputPerMTok: 15,
@@ -40,6 +41,41 @@ export const KNOWN_MODELS: Record<string, ModelPricing> = {
     outputPerMTok: 5,
     cacheReadPerMTok: 0.1,
     cacheCreatePerMTok: 1.25,
+  },
+
+  // ─ DeepSeek via OpenRouter ───────────────────────────────────────
+  // Public published rates as of authoring; verify against
+  // https://openrouter.ai/models when picking. assertKnown() will fail-fast
+  // on a missing entry, so adding new ids is cheap.
+  'deepseek/deepseek-chat': {
+    inputPerMTok: 0.14,
+    outputPerMTok: 0.28,
+    cacheReadPerMTok: 0.014,
+    cacheCreatePerMTok: 0.14,
+  },
+  'deepseek/deepseek-chat-v3.1': {
+    inputPerMTok: 0.27,
+    outputPerMTok: 1.1,
+    cacheReadPerMTok: 0.027,
+    cacheCreatePerMTok: 0.27,
+  },
+  'deepseek/deepseek-v3.2-exp': {
+    inputPerMTok: 0.27,
+    outputPerMTok: 0.4,
+    cacheReadPerMTok: 0.027,
+    cacheCreatePerMTok: 0.27,
+  },
+  'deepseek/deepseek-v4': {
+    inputPerMTok: 0.4,
+    outputPerMTok: 1.5,
+    cacheReadPerMTok: 0.04,
+    cacheCreatePerMTok: 0.4,
+  },
+  'deepseek/deepseek-r1': {
+    inputPerMTok: 0.55,
+    outputPerMTok: 2.19,
+    cacheReadPerMTok: 0.055,
+    cacheCreatePerMTok: 0.55,
   },
 }
 
