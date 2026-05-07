@@ -65,7 +65,25 @@ export const KNOWN_MODELS: Record<string, ModelPricing> = {
     cacheReadPerMTok: 0.027,
     cacheCreatePerMTok: 0.27,
   },
-  'deepseek/deepseek-v4': {
+  'deepseek/deepseek-v3.2': {
+    inputPerMTok: 0.27,
+    outputPerMTok: 0.4,
+    cacheReadPerMTok: 0.027,
+    cacheCreatePerMTok: 0.27,
+  },
+  'deepseek/deepseek-v3.1-terminus': {
+    inputPerMTok: 0.23,
+    outputPerMTok: 0.9,
+    cacheReadPerMTok: 0.023,
+    cacheCreatePerMTok: 0.23,
+  },
+  'deepseek/deepseek-v4-flash': {
+    inputPerMTok: 0.2,
+    outputPerMTok: 0.8,
+    cacheReadPerMTok: 0.02,
+    cacheCreatePerMTok: 0.2,
+  },
+  'deepseek/deepseek-v4-pro': {
     inputPerMTok: 0.4,
     outputPerMTok: 1.5,
     cacheReadPerMTok: 0.04,
