@@ -1,107 +1,101 @@
 # rx-assistant — agentic chat for healthcare
 
-Senior FS engineer take-home. Streaming agentic chat with voice. Currently in **Phase 1 of 4**: agentic streaming backend.
+Senior FS engineer take-home. Streaming agentic chat with voice. **Phase 1 backend is closed.** Currently entering **Phase 2 of 4**: React chat UI.
 
 Authoritative sources:
 - `ASSIGNMENT.md` — full assignment text
-- `specs/phase-1-agentic-streaming-backend.md` — Phase 1 technical spec (single source of truth)
-- `specs/phase-1-slice-6-test-plan.md` — detailed integration test plan for the headline slice
-- `specs/data-model-review.md`, `specs/spec-review.md` — review docs with resolution audit trails
-- `~/.claude/plans/read-the-assignement-file-ethereal-fog.md` — implementation plan
+- `specs/phase-2-frontend.md` — Phase 2 frontend integration spec (active)
+- `specs/archive/phase-1-agentic-streaming-backend.md` — closed Phase 1 backend spec
+- `specs/archive/phase-1-slice-6-test-plan.md` — closed Phase 1 test plan
+- `design/` — Claude Design handoff bundle (HTML/JSX/CSS source for the UI)
+- `~/.claude/plans/...` — current plan file
 
-## Stack (Phase 1)
+## Where we are
+
+Phase 1 backend ships **170 tests green**, full layered structured logging, live-verified OpenRouter agent loop with both healthcare tools, and structured persistence. The `/api/chat` SSE wire format is the contract Phase 2 consumes.
+
+Verification baseline: `bun test` from `backend/` → 170 / 170. `bun run typecheck` clean.
+
+## Stack
+
+### Phase 1 (shipped, do not modify casually)
 
 - Bun + TypeScript
 - Hono — HTTP, SSE (`hono/streaming` `streamSSE`)
-- Vercel AI SDK (`ai`) + `@openrouter/ai-sdk-provider` — LLM, agent loop, tool calling
-- SQLite (`bun:sqlite`) + Drizzle ORM (+ `drizzle-kit`) — persistence + migrations; WAL mode at startup
-- Zod — validation
-- ULID — ids
-- pino — structured logging
+- Vercel AI SDK (`ai`) + `@openrouter/ai-sdk-provider`
+- SQLite (`bun:sqlite`) + Drizzle ORM (+ `drizzle-kit`); WAL mode at startup
+- Zod, ULID, pino (structured layered logging)
 
-Do **not** import `@anthropic-ai/sdk` directly. Provider portability is a hard requirement (see memory `feedback_avoid_provider_lockin.md`).
+### Phase 2 (to build)
+
+Library choices are open within the assignment's constraints (TypeScript, React). Recommendations are recorded in `specs/phase-2-frontend.md` §3:
+- **Vite + React + TypeScript** — fast dev, well-known
+- **react-markdown + remark-gfm + rehype-highlight** — markdown rendering
+- **Custom SSE consumer hook** — `EventSource` doesn't support POST, so hand-parse `fetch` + `ReadableStream` (~30 LOC)
+- **Lightweight state** — Zustand or React context; no Redux.
+
+Phase 3 adds the voice layer (Web Speech API + OpenAI TTS via a backend `/api/tts` endpoint). Phase 4 adds Docker + CI.
 
 ## TDD discipline
 
-- Vertical-slice TDD: write the slice's tests first, watch them go red, implement until green, refactor.
-- No code path without an exercising test.
-- Tests live in `backend/tests/` and mirror `backend/src/`.
-- Run: `bun test` or `bun test --watch`.
-- Mock the LLM with `MockLanguageModelV2` from `ai/test`.
-- After every code-generation step (each slice, each prep-step that touches files), pause and surface diff + test status for user review before advancing.
+Same vertical-slice discipline as Phase 1 — write the slice's tests first, watch them go red, implement until green, refactor, pause for review, commit.
 
-## Common commands
+For React components, the test runner is **Vitest** (`vitest run` / `vitest --watch`) with **@testing-library/react** for component tests and **MSW** for mocking the SSE `/api/chat` endpoint. Visual regression / Storybook deferred to Phase 4.
+
+## Common commands (Phase 2 — to be created)
 
 | Command | Effect |
 | --- | --- |
-| `bun install` | install deps |
-| `bun test` | run all tests once |
-| `bun test --watch` | TDD loop |
-| `bun run dev` | dev server on :8787 (structured JSON logs) |
-| `bun run dev:pretty` | dev server piped through pino-pretty (human-readable) |
-| `bun run migrate` | apply Drizzle migrations |
-| `bun run typecheck` | `tsc --noEmit` |
+| (back-end) `cd backend && bun run dev` | Phase 1 server on `:8787` (stays untouched) |
+| (back-end) `cd backend && bun test` | 170 / 170 backend tests |
+| (front-end) `cd frontend && bun install` | install React deps |
+| (front-end) `cd frontend && bun run dev` | Vite dev server with `/api` proxy → `:8787` |
+| (front-end) `cd frontend && bun run test` | Vitest |
+| (front-end) `cd frontend && bun run typecheck` | `tsc --noEmit` |
 
-## How to view logs
+Final layout will live in `frontend/` so `backend/` stays isolated.
 
-Default — structured JSON to stdout. Every line carries `requestId`, `layer` (`http \| service \| repo \| tool \| boot`), and a short dot-separated `msg` verb. Greppable, ships cleanly to any aggregator.
+## How to view backend logs (carry-over from Phase 1)
 
-```
-$ bun run dev
-{"level":30,"time":...,"requestId":"01KR...","layer":"http","msg":"http.request","method":"POST","path":"/api/chat","status":200,...}
-```
+`bun run dev` emits structured JSON to stdout; `bun run dev:pretty` pipes through pino-pretty for human reading. `LOG_LEVEL=debug` surfaces repo + tool layers. Every layer (`http \| service \| repo \| tool \| boot`) shares a `requestId`; the `X-Request-Id` response header lets the React UI correlate browser-side errors with server logs.
 
-Dev-pretty — human-readable, colored, single-line:
+## Phase 2 conventions
 
-```
-$ bun run dev:pretty
-[12:34:56.789] INFO (rx-assistant): http.request requestId=01KR... method=POST path=/api/chat status=200 latencyMs=842
-```
-
-Or set `LOG_PRETTY=true` in `.env` to attach pino-pretty in-process.
-
-Tail one request across all layers: `tail -f dev.log | jq 'select(.requestId == "<id>")'`. The `X-Request-Id` response header is always set so a Phase 2 client can echo it for support.
-
-**Tracing (deferred, Phase 4 anchor):** `streamText({ experimental_telemetry: { isEnabled: true, functionId: 'rx-assistant.chat' } })` enables AI SDK OTel spans. Wire an OTel SDK + exporter in Phase 4.
-
-## Conventions
-
-- File layout: see spec §4.5.
-- IDs: ULID via `src/lib/ids.ts`.
-- Errors: structured envelope `{ error: { code, message } }` via `src/lib/errors.ts`. Routes throw `HttpError`; middleware shapes the response.
-- SSE wire taxonomy: spec §3.2.1. Encoded by `src/lib/sse.ts`. Translated from AI SDK `fullStream` parts in `src/agent/translate.ts`. `metadata` is the terminal happy-path event (no `done`).
-- Tools: each file exports `{ description, inputSchema (zod), execute }` consumable directly by `streamText({ tools })`.
-- Stored message content: `ContentPart[]` JSON blob (spec §2.4). `tool-result.output` is the AI SDK discriminated `ToolResultOutput`; `isError` is derived at translate time, not stored. Build the array in memory; single insert at end (F-12).
-- Tool-result messages are their own row with `role: 'tool'` (matches AI SDK `ModelMessage`).
+- **Component file layout** — one component per file under `frontend/src/components/`; tests next to the component (`Composer.tsx` ↔ `Composer.test.tsx`).
+- **SSE consumer** lives in `frontend/src/hooks/useChatStream.ts`; emits a typed state machine (`idle → submitting → streaming → done | error`).
+- **Wire-format types** are imported from a shared `frontend/src/lib/wire.ts` that mirrors backend §3.2.1 (one source of truth for event names + payload shapes).
+- **Design tokens** ported from `design/project/tokens.css` to `frontend/src/styles/tokens.css` verbatim (paper #EDE6D6, brick #A8463E, Source Serif 4 + Inter + JetBrains Mono).
+- **Markdown rendering** — `react-markdown` with `remark-gfm` + `rehype-highlight`. Custom renderers for `<code>` blocks (theming) and tables.
+- **No PHI** in fixtures. Prompts in tests are generic ("ibuprofen", "headache").
 
 ## Phase boundaries
 
-- **Phase 1 (current)** — backend only. No React, no voice, no Docker.
-- Phase 2 — React chat UI consuming the SSE wire format.
-- Phase 3 — voice in/out.
-- Phase 4 — Docker compose + CI.
+- Phase 1 (closed) — backend
+- **Phase 2 (current)** — React UI consuming the SSE wire format
+- Phase 3 — voice in/out (mic + TTS endpoint)
+- Phase 4 — Docker compose + CI
 
-Do not jump ahead.
+Do not jump ahead. Voice composer states (`recording`, `denied`) and `AudioPlayer` are present in the design source but are **Phase 3** — render them in their static "off" states for Phase 2 and wire the runtime in Phase 3.
 
 ## Constraints
 
-- OpenRouter via the AI SDK only.
-- Default model: `anthropic/claude-sonnet-4.6` (overridable via `OPENROUTER_MODEL` env). `pricing.assertKnown` runs at boot — misconfigured ids fail fast.
-- DB path is plain filesystem (`DATABASE_PATH`, e.g. `./data/app.db`). Whole-stream timeout is `AI_TIMEOUT_MS` (default 60000); per-tool timeout is independent `TOOL_TIMEOUT_MS` (default 5000).
-- No PHI in fixtures, seeds, prompts. Both healthcare tools surface a "not medical advice" disclaimer.
-- Secrets only via env. Never log API keys.
-- `DELETE /api/messages/:id` accepts only user-message ids — cascades through the rest of the turn (assistant + tool messages until next user message). 400 `INVALID_TARGET` for non-user ids.
+- Backend stays untouched in Phase 2 unless a missing wire field is discovered. If that happens, file an issue / mini-plan and amend the spec before changing code.
+- React UI must consume the SSE stream without `EventSource` (POST not supported). Hand-parse `fetch().body.getReader()`.
+- `metadata` is the terminal happy-path event (no `done`); stream-close-after-metadata is the client's "stream finished" signal.
+- `tool-call-result.isError` is derived; UI distinguishes success (green check) from error (warn pill).
+- Conversation list view excludes `messages` for payload size; load full conversation only when one is selected.
 
-## Adding a tool
+## Adding work
 
-1. `src/agent/tools/<name>.ts` exports `{ description, inputSchema, execute }`.
-2. Register in `src/agent/tools/index.ts`.
-3. Unit test in `backend/tests/tools/<name>.test.ts` covering happy + error + Zod input-validation failure.
+Per the carry-over memories:
+- Use TDD (`feedback_tdd_discipline.md`)
+- Pause for review after each slice / prep-step (`feedback_pause_for_review.md`)
+- Commit per slice with a conventional message (`feedback_commit_after_steps.md`)
+- Avoid provider lock-in (`feedback_avoid_provider_lockin.md`) — relevant if Phase 2 adds any third-party SDK
 
 ## Where to look first
 
-- New session: this file → spec.
-- Why a decision was made: spec §4 / §8; or `specs/{data-model-review,spec-review}.md` Resolutions sections.
-- Wire format: spec §3.2.1.
+- New session, no context: this file → `specs/phase-2-frontend.md` → `design/README.md`.
+- Wire format reference: `specs/archive/phase-1-agentic-streaming-backend.md` §3.2.1.
+- What was built in Phase 1: `specs/archive/phase-1-agentic-streaming-backend.md` §9 (deviations log) + git log.
 - Recurring preferences: `~/.claude/projects/-Users-jolo-Documents-rx-assitant/memory/MEMORY.md`.
-- Phase 2 watchlist: deferred items from review docs (e.g. `model` column on messages) live in the Phase 2 plan when authored.

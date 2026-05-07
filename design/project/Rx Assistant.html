@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Rx Assistant — UI mockups</title>
+<link rel="stylesheet" href="tokens.css"/>
+<link rel="stylesheet" href="components.css"/>
+<style>
+  html, body { margin: 0; height: 100%; background: #EDE6D6; }
+  body { font-family: "Inter", system-ui, sans-serif; }
+</style>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="components.jsx"></script>
+<script type="text/babel" src="screens.jsx"></script>
+<script type="text/babel" src="components-page.jsx"></script>
+<script type="text/babel" src="tokens-page.jsx"></script>
+
+<script type="text/babel" data-presets="env,react">
+const { DesignCanvas, DCSection, DCArtboard, DCPostIt } = window;
+const { S1Empty, S2Streaming, S2Live, S3Settled, S4Sidebar,
+        S5MicDenied, S6Error, S7Capped, S8Loading,
+        ComponentsPage, TokensPage, Ic } = window;
+
+/* ─── Theme toggle (Tweaks-equivalent: light/dark mode only) ─── */
+function ThemeToggle() {
+  const [dark, setDark] = React.useState(() => document.documentElement.dataset.theme === "dark");
+  React.useEffect(() => { document.documentElement.dataset.theme = dark ? "dark" : "light"; }, [dark]);
+  return (
+    <button className="rx-themetoggle" onClick={() => setDark(d => !d)}
+      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}>
+      {dark ? <Ic.Sun size={14}/> : <Ic.Moon size={14}/>}
+      <span>{dark ? "Light" : "Dark"} mode</span>
+    </button>
+  );
+}
+
+/* Desktop artboards target 1440 × 900; mobile 390 × 844 */
+const D = { w: 1440, h: 900 };
+const M = { w: 390,  h: 844 };
+
+function App() {
+  return (
+    <>
+      <ThemeToggle/>
+      <DesignCanvas>
+
+        {/* ── Direction & system note ── */}
+        <DCSection id="overview" title="Rx Assistant" subtitle="Single-user, paper-toned chat surface. Source Serif 4 + Inter on warm cream. Single warm accent: brick #A8463E. Toggle dark via the chip in the top-right.">
+          <DCArtboard id="readme" label="System notes" width={760} height={620}>
+            <div className="rx-cpage" style={{ padding: 32, gap: 22 }}>
+              <h1 className="rx-cpage__hed" style={{ fontSize: 28 }}>The system at a glance</h1>
+              <p className="t-body-md" style={{ color: "var(--text-secondary)", margin: 0 }}>
+                Rx Assistant is a single-user medical-information chat. Calm posture, hairlines over shadows, generous whitespace. The serif holds the voice; sans does the work; mono earns its spot only on tool names, JSON, and counters.
+              </p>
+              <ul className="t-body-md" style={{ paddingLeft: 18, lineHeight: "26px", margin: 0 }}>
+                <li><strong>Paper</strong> — three-tier cream surface (canvas / surface / raised). No pure black or white anywhere; even text is <code>#1C1B17</code>.</li>
+                <li><strong>Streaming language</strong> — caret blinks at 1.0&nbsp;s; reasoning dot pulses; tool pill rotates a hairline spinner. Every animation has a static-fallback under <code>prefers-reduced-motion</code>.</li>
+                <li><strong>Tool pills</strong> — four states (pending · running · success · warn) with paired bg / fg / border tokens for contrast on cream.</li>
+                <li><strong>Density</strong> — chat column maxes 720&nbsp;px; bubbles 70% column width. Mobile bubbles widen to 86%.</li>
+                <li><strong>Variations</strong> — committed direction, polished. Dark mode mirrors the warmth (no cold blacks).</li>
+              </ul>
+            </div>
+          </DCArtboard>
+        </DCSection>
+
+        {/* ── Desktop ── */}
+        <DCSection id="desktop" title="Desktop · 1440" subtitle="All eight required screens at the canonical breakpoint.">
+          <DCArtboard id="s1" label="S-1 · Empty / first run" width={D.w} height={D.h}><S1Empty/></DCArtboard>
+          <DCArtboard id="s2" label="S-2 · Mid-stream (snapshot)" width={D.w} height={D.h}><S2Streaming/></DCArtboard>
+          <DCArtboard id="s2live" label="S-2 · Live (replayable)" width={D.w} height={D.h}><S2Live/></DCArtboard>
+          <DCArtboard id="s3" label="S-3 · Settled" width={D.w} height={D.h}><S3Settled/></DCArtboard>
+          <DCArtboard id="s3audio" label="S-3 · Settled + TTS" width={D.w} height={D.h}><S3Settled showAudio/></DCArtboard>
+          <DCArtboard id="s4" label="S-4 · Sidebar focus" width={D.w} height={D.h}><S4Sidebar/></DCArtboard>
+          <DCArtboard id="s5" label="S-5 · Mic permission denied" width={D.w} height={D.h}><S5MicDenied/></DCArtboard>
+          <DCArtboard id="s6" label="S-6 · Mid-stream error" width={D.w} height={D.h}><S6Error/></DCArtboard>
+          <DCArtboard id="s7" label="S-7 · Step cap reached" width={D.w} height={D.h}><S7Capped/></DCArtboard>
+          <DCArtboard id="s8" label="S-8 · Loading skeleton" width={D.w} height={D.h}><S8Loading/></DCArtboard>
+        </DCSection>
+
+        {/* ── Mobile ── */}
+        <DCSection id="mobile" title="Mobile · 390" subtitle="Same eight screens reflowed to 390×844. Sidebar becomes a sheet (S-4).">
+          <DCArtboard id="m1" label="S-1 · Empty" width={M.w} height={M.h}><S1Empty mobile/></DCArtboard>
+          <DCArtboard id="m2" label="S-2 · Mid-stream" width={M.w} height={M.h}><S2Streaming mobile/></DCArtboard>
+          <DCArtboard id="m3" label="S-3 · Settled" width={M.w} height={M.h}><S3Settled mobile/></DCArtboard>
+          <DCArtboard id="m3audio" label="S-3 · Settled + TTS" width={M.w} height={M.h}><S3Settled mobile showAudio/></DCArtboard>
+          <DCArtboard id="m4" label="S-4 · Sidebar sheet" width={M.w} height={M.h}><S4Sidebar mobile/></DCArtboard>
+          <DCArtboard id="m5" label="S-5 · Mic denied" width={M.w} height={M.h}><S5MicDenied mobile/></DCArtboard>
+          <DCArtboard id="m6" label="S-6 · Error" width={M.w} height={M.h}><S6Error mobile/></DCArtboard>
+          <DCArtboard id="m7" label="S-7 · Capped" width={M.w} height={M.h}><S7Capped mobile/></DCArtboard>
+          <DCArtboard id="m8" label="S-8 · Loading" width={M.w} height={M.h}><S8Loading mobile/></DCArtboard>
+        </DCSection>
+
+        {/* ── Components reference ── */}
+        <DCSection id="components" title="Components" subtitle="Every state variant called out in §4.">
+          <DCArtboard id="cpage" label="All components" width={1280} height={5400}><ComponentsPage/></DCArtboard>
+        </DCSection>
+
+        {/* ── Tokens reference ── */}
+        <DCSection id="tokens" title="Tokens" subtitle="Color · type · spacing · radius · motion. Inspect dark variants by toggling the chip up top.">
+          <DCArtboard id="tpage" label="Design tokens" width={1280} height={3900}><TokensPage/></DCArtboard>
+        </DCSection>
+
+      </DesignCanvas>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
