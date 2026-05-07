@@ -80,6 +80,8 @@ Do not jump ahead. Voice composer states (`recording`, `denied`) and `AudioPlaye
 ## Constraints
 
 - Backend stays untouched in Phase 2 unless a missing wire field is discovered. If that happens, file an issue / mini-plan and amend the spec before changing code.
+- **Reload-state limitations are deliberate** (see `specs/phase-2-frontend.md` §1.4): `<CappedNotice>`, `<ErrorPill>` + partial mid-stream text, and tool-call `0.7s` durations are **live-only** ornaments. On page reload they degrade to "show the structural data only / 'Complete' label / nothing". Any backend changes to recover them are intentionally out of scope for Phase 2.
+- **Voice components in Phase 2** render `disabled` with hover tooltips. Phase 3 lifts the `disabled` attribute and wires the runtimes — no other refactors required.
 - React UI must consume the SSE stream without `EventSource` (POST not supported). Hand-parse `fetch().body.getReader()`.
 - `metadata` is the terminal happy-path event (no `done`); stream-close-after-metadata is the client's "stream finished" signal.
 - `tool-call-result.isError` is derived; UI distinguishes success (green check) from error (warn pill).
