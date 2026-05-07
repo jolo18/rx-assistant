@@ -30,7 +30,8 @@ coverage/
 !.env.example
 
 # SQLite — local databases stay on disk
-data/
+/data/
+/backend/data/
 *.db
 *.db-shm
 *.db-wal

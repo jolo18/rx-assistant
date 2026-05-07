@@ -1,0 +1,215 @@
+{
+  "disclaimer": "This information is for general awareness only and is not medical advice. For diagnosis or treatment, please consult a licensed healthcare professional.",
+  "entries": [
+    {
+      "name": "headache",
+      "aliases": ["head pain", "head ache", "cephalalgia"],
+      "description": "A sensation of pain anywhere in the region of the head or upper neck.",
+      "commonCauses": ["tension", "dehydration", "lack of sleep", "caffeine withdrawal", "migraine", "sinus pressure"],
+      "whenToSeekCare": "Seek urgent care for the worst headache of your life, sudden-onset severe headache, headache with fever and stiff neck, vision changes, weakness, confusion, or onset after head injury."
+    },
+    {
+      "name": "fever",
+      "aliases": ["pyrexia", "high temperature"],
+      "description": "Body temperature elevated above the normal range, typically 38°C (100.4°F) or higher.",
+      "commonCauses": ["viral infection", "bacterial infection", "inflammatory conditions", "heat exhaustion", "vaccine reaction"],
+      "whenToSeekCare": "Adults: seek care for temperature >39.4°C (103°F), fever lasting >3 days, severe headache, stiff neck, rash, persistent vomiting, difficulty breathing, or chest pain. Infants <3 months with any fever should be evaluated immediately."
+    },
+    {
+      "name": "cough",
+      "aliases": ["coughing"],
+      "description": "Sudden expulsion of air from the lungs through the airway, often a reflex to clear irritants.",
+      "commonCauses": ["upper respiratory infection", "post-nasal drip", "asthma", "GERD", "smoking", "air irritants"],
+      "whenToSeekCare": "Seek care for cough with bloody sputum, severe shortness of breath, high fever, chest pain, or cough lasting more than 3 weeks."
+    },
+    {
+      "name": "chest pain",
+      "aliases": ["chest pressure", "chest tightness", "thoracic pain"],
+      "description": "Discomfort, pressure, or pain anywhere from the neck to the upper abdomen.",
+      "commonCauses": ["muscle strain", "GERD/heartburn", "anxiety", "costochondritis", "angina", "heart attack", "pulmonary embolism"],
+      "whenToSeekCare": "CALL EMERGENCY SERVICES for chest pain that is severe, crushing, radiates to arm/jaw/back, occurs with shortness of breath, sweating, nausea, or lasts more than a few minutes — these can indicate a heart attack."
+    },
+    {
+      "name": "shortness of breath",
+      "aliases": ["dyspnea", "breathlessness", "trouble breathing"],
+      "description": "A subjective sensation of difficult or uncomfortable breathing.",
+      "commonCauses": ["exertion", "anxiety", "asthma", "respiratory infection", "anemia", "heart failure", "pulmonary embolism"],
+      "whenToSeekCare": "CALL EMERGENCY SERVICES for sudden severe shortness of breath, breathing difficulty at rest, blue lips or fingertips, chest pain, or fainting."
+    },
+    {
+      "name": "abdominal pain",
+      "aliases": ["stomach pain", "stomachache", "belly pain"],
+      "description": "Pain felt anywhere between the chest and groin.",
+      "commonCauses": ["indigestion", "gastroenteritis", "constipation", "menstrual cramps", "food intolerance", "appendicitis", "kidney stones"],
+      "whenToSeekCare": "Seek urgent care for severe pain, pain with fever and vomiting, rigid or tender abdomen, blood in stool or vomit, or pain that wakes you from sleep."
+    },
+    {
+      "name": "nausea",
+      "aliases": ["queasiness"],
+      "description": "Uneasiness of the stomach with an urge to vomit.",
+      "commonCauses": ["viral gastroenteritis", "food poisoning", "motion sickness", "pregnancy", "medication side effect", "migraine"],
+      "whenToSeekCare": "Seek care for nausea with severe abdominal pain, signs of dehydration, vomiting blood, severe headache, or lasting >48 hours."
+    },
+    {
+      "name": "vomiting",
+      "aliases": ["throwing up", "emesis"],
+      "description": "Forceful expulsion of stomach contents through the mouth.",
+      "commonCauses": ["gastroenteritis", "food poisoning", "migraine", "pregnancy", "intestinal obstruction"],
+      "whenToSeekCare": "Seek urgent care for vomiting blood, persistent vomiting >24h in adults or >12h in children, severe abdominal pain, signs of dehydration, or head injury."
+    },
+    {
+      "name": "diarrhea",
+      "aliases": ["loose stools"],
+      "description": "Passage of three or more loose or liquid stools per day.",
+      "commonCauses": ["viral or bacterial gastroenteritis", "food intolerance", "antibiotic side effect", "IBS", "celiac disease"],
+      "whenToSeekCare": "Seek care for bloody stools, severe dehydration, fever >39°C, severe abdominal pain, or diarrhea lasting >2 days in adults."
+    },
+    {
+      "name": "fatigue",
+      "aliases": ["tiredness", "exhaustion", "low energy"],
+      "description": "Persistent feeling of physical or mental tiredness or weakness.",
+      "commonCauses": ["sleep deprivation", "stress", "anemia", "depression", "thyroid disorders", "chronic illness", "medication side effect"],
+      "whenToSeekCare": "Discuss with a clinician if fatigue persists >2 weeks, interferes with daily activities, or is accompanied by weight changes, chest pain, or shortness of breath."
+    },
+    {
+      "name": "dizziness",
+      "aliases": ["lightheadedness", "vertigo"],
+      "description": "Sensations of unsteadiness, spinning, or feeling faint.",
+      "commonCauses": ["dehydration", "low blood pressure", "inner-ear issues", "anemia", "medication side effect", "low blood sugar"],
+      "whenToSeekCare": "Seek urgent care for dizziness with sudden severe headache, chest pain, fainting, slurred speech, weakness, vision changes, or after a head injury."
+    },
+    {
+      "name": "rash",
+      "aliases": ["skin rash", "skin eruption"],
+      "description": "A change in skin color or texture, often with bumps, blisters, or peeling.",
+      "commonCauses": ["allergic reaction", "viral infection", "eczema", "contact dermatitis", "drug reaction"],
+      "whenToSeekCare": "Seek urgent care for rash with fever, blistering, peeling skin, breathing difficulty, swelling of face/throat, or rapid spread."
+    },
+    {
+      "name": "sore throat",
+      "aliases": ["pharyngitis", "throat pain"],
+      "description": "Pain, scratchiness, or irritation of the throat that often worsens with swallowing.",
+      "commonCauses": ["viral infection", "strep throat", "post-nasal drip", "allergies", "dry air", "vocal strain"],
+      "whenToSeekCare": "Seek care for severe pain, difficulty breathing or swallowing, drooling, fever >38.3°C, swollen lymph nodes, or symptoms lasting >1 week."
+    },
+    {
+      "name": "back pain",
+      "aliases": ["backache", "lower back pain", "lumbago"],
+      "description": "Pain anywhere along the spine or back muscles.",
+      "commonCauses": ["muscle strain", "poor posture", "herniated disc", "arthritis", "kidney issues"],
+      "whenToSeekCare": "Seek urgent care for back pain after major trauma, with leg weakness, loss of bladder/bowel control, fever, or unexplained weight loss."
+    },
+    {
+      "name": "joint pain",
+      "aliases": ["arthralgia"],
+      "description": "Discomfort, ache, or soreness in any of the body's joints.",
+      "commonCauses": ["overuse", "sprain or strain", "osteoarthritis", "rheumatoid arthritis", "gout", "bursitis"],
+      "whenToSeekCare": "Seek care for joint pain with significant swelling, redness, warmth, deformity, or inability to bear weight."
+    },
+    {
+      "name": "runny nose",
+      "aliases": ["rhinorrhea", "nasal congestion"],
+      "description": "Excess nasal drainage that may be thin and clear or thick and discolored.",
+      "commonCauses": ["common cold", "allergies", "sinus infection", "flu"],
+      "whenToSeekCare": "Generally self-limiting. Seek care for high fever, severe facial pain, symptoms lasting >10 days, or thick green/yellow discharge with facial pressure."
+    },
+    {
+      "name": "sneezing",
+      "aliases": ["sternutation"],
+      "description": "Sudden, forceful, involuntary expulsion of air through the nose and mouth.",
+      "commonCauses": ["allergies", "viral upper respiratory infection", "irritants"],
+      "whenToSeekCare": "Rarely emergent. Discuss with a clinician if persistent or accompanied by significant other symptoms."
+    },
+    {
+      "name": "muscle pain",
+      "aliases": ["myalgia", "muscle ache"],
+      "description": "Aching or soreness in one or more muscles.",
+      "commonCauses": ["overuse", "tension", "viral illness", "minor injury", "fibromyalgia", "medication side effect"],
+      "whenToSeekCare": "Seek care for muscle pain that is severe, accompanied by dark urine, weakness, fever, or after starting a new medication (especially statins)."
+    },
+    {
+      "name": "swelling",
+      "aliases": ["edema", "puffiness"],
+      "description": "Enlargement of body parts due to fluid build-up or inflammation.",
+      "commonCauses": ["injury", "allergic reaction", "prolonged standing", "heart/kidney/liver disease", "medication side effect"],
+      "whenToSeekCare": "Seek urgent care for sudden swelling of face/lips/tongue, swelling with breathing difficulty, calf pain with swelling (possible blood clot), or abdominal swelling with pain."
+    },
+    {
+      "name": "constipation",
+      "aliases": ["irregular bowel movements"],
+      "description": "Infrequent bowel movements or difficulty passing stool, typically <3 times per week.",
+      "commonCauses": ["low fiber intake", "dehydration", "inactivity", "medication side effect", "IBS", "thyroid disorders"],
+      "whenToSeekCare": "Seek care for constipation with severe pain, blood in stool, unexplained weight loss, or sudden change in bowel habits lasting >2 weeks."
+    },
+    {
+      "name": "heartburn",
+      "aliases": ["acid reflux", "indigestion", "gerd"],
+      "description": "Burning sensation in the chest behind the breastbone, often after eating.",
+      "commonCauses": ["GERD", "spicy or fatty foods", "lying down after meals", "obesity", "pregnancy", "hiatal hernia"],
+      "whenToSeekCare": "Seek urgent care if heartburn is severe, occurs with shortness of breath or arm/jaw pain (possible heart attack), or causes difficulty swallowing."
+    },
+    {
+      "name": "ear pain",
+      "aliases": ["earache", "otalgia"],
+      "description": "Pain in or around the ear.",
+      "commonCauses": ["ear infection", "fluid build-up", "earwax", "sinus pressure", "TMJ disorder"],
+      "whenToSeekCare": "Seek care for severe pain, fever, drainage from the ear, hearing loss, dizziness, or pain after head injury."
+    },
+    {
+      "name": "blurred vision",
+      "aliases": ["fuzzy vision"],
+      "description": "Lack of sharpness of vision, with objects appearing out of focus.",
+      "commonCauses": ["refractive error needing correction", "dry eyes", "low blood sugar", "migraine", "diabetes", "cataracts"],
+      "whenToSeekCare": "Seek urgent care for sudden vision loss, vision changes with severe headache, eye pain, or symptoms of stroke (weakness, slurred speech)."
+    },
+    {
+      "name": "insomnia",
+      "aliases": ["trouble sleeping", "sleeplessness"],
+      "description": "Persistent difficulty falling or staying asleep, despite the opportunity to sleep.",
+      "commonCauses": ["stress", "anxiety", "depression", "caffeine", "screen time", "shift work", "sleep apnea"],
+      "whenToSeekCare": "Discuss with a clinician if insomnia persists >1 month, impairs daily function, or is accompanied by mood changes or loud snoring."
+    },
+    {
+      "name": "anxiety",
+      "aliases": ["panic", "nervousness"],
+      "description": "Persistent feelings of worry, unease, or fear, often with physical symptoms like a racing heart.",
+      "commonCauses": ["stress", "generalized anxiety disorder", "panic disorder", "thyroid issues", "caffeine", "withdrawal from substances"],
+      "whenToSeekCare": "Seek care if anxiety interferes with daily life, includes panic attacks, or co-occurs with thoughts of self-harm. Mental-health emergencies warrant urgent help."
+    },
+    {
+      "name": "weight loss",
+      "aliases": ["unintentional weight loss"],
+      "description": "A decrease in body weight that is not the result of intentional diet or exercise.",
+      "commonCauses": ["thyroid disorders", "diabetes", "depression", "infections", "malabsorption", "cancer"],
+      "whenToSeekCare": "Discuss with a clinician for unintentional loss of >5% body weight over 6–12 months, or any weight loss accompanied by other concerning symptoms."
+    },
+    {
+      "name": "hives",
+      "aliases": ["urticaria", "welts"],
+      "description": "Raised, itchy bumps or welts on the skin, often pink or red.",
+      "commonCauses": ["allergic reaction", "infection", "stress", "medication", "physical trigger (cold, pressure)"],
+      "whenToSeekCare": "CALL EMERGENCY SERVICES for hives with breathing difficulty, swelling of lips/tongue/throat, dizziness, or rapid heart rate — these can indicate anaphylaxis."
+    },
+    {
+      "name": "swollen lymph nodes",
+      "aliases": ["swollen glands", "lymphadenopathy"],
+      "description": "Enlarged lymph nodes, often felt as lumps in the neck, armpit, or groin.",
+      "commonCauses": ["viral or bacterial infection", "immune response", "less commonly, lymphoma or other cancers"],
+      "whenToSeekCare": "Seek care for nodes that are persistently enlarged >2 weeks, hard or fixed in place, accompanied by fever, night sweats, or unexplained weight loss."
+    },
+    {
+      "name": "frequent urination",
+      "aliases": ["polyuria", "urinary frequency"],
+      "description": "The need to urinate more often than usual.",
+      "commonCauses": ["urinary tract infection", "diabetes", "overactive bladder", "diuretic medications", "pregnancy", "prostate enlargement"],
+      "whenToSeekCare": "Seek care for frequent urination with pain or burning, blood in urine, fever, abdominal/back pain, or excessive thirst with weight loss."
+    },
+    {
+      "name": "leg swelling",
+      "aliases": ["edema in legs", "ankle swelling"],
+      "description": "Excess fluid build-up in the legs, ankles, or feet.",
+      "commonCauses": ["prolonged sitting/standing", "venous insufficiency", "heart failure", "kidney disease", "medication side effect", "blood clot (DVT)"],
+      "whenToSeekCare": "CALL EMERGENCY SERVICES for sudden leg swelling with pain or warmth (possible blood clot), or swelling with breathing difficulty or chest pain."
+    }
+  ]
+}

@@ -12,6 +12,7 @@
     "migrate": "bun run src/db/migrate.ts"
   },
   "dependencies": {
+    "ai": "^6.0.175",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.9.10",
     "pino": "^9.5.0",
