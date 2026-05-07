@@ -14,6 +14,8 @@ const baseEnv: Env = {
   DATABASE_PATH: ':memory:',
   PORT: 8787,
   LOG_LEVEL: 'silent',
+  LOG_PRETTY: false,
+  CORS_ORIGINS: '*',
 }
 
 export type BuildAppOverrides = {

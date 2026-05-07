@@ -1,9 +1,10 @@
 import { Hono } from 'hono'
 import type { DbHandle } from '../db/client.ts'
 import { pingDb } from '../db/client.ts'
+import type { AppEnv } from '../types/hono-env.ts'
 
 export function healthRoute(handle: DbHandle) {
-  const app = new Hono()
+  const app = new Hono<AppEnv>()
   app.get('/', (c) => {
     const reachable = pingDb(handle.sqlite)
     if (!reachable) {

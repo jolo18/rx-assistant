@@ -11,6 +11,11 @@ const EnvSchema = z.object({
   LOG_LEVEL: z
     .enum(['silent', 'fatal', 'error', 'warn', 'info', 'debug', 'trace'])
     .default('info'),
+  LOG_PRETTY: z
+    .union([z.literal('true'), z.literal('false'), z.boolean()])
+    .default(false)
+    .transform((v) => v === true || v === 'true'),
+  CORS_ORIGINS: z.string().default('*'),
 })
 
 export type Env = z.infer<typeof EnvSchema>

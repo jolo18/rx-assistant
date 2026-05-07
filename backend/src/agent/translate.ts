@@ -134,14 +134,26 @@ export type TranslateCtx = {
   now: () => number
   /** When set, a `finish-step` with `finishReason: 'tool-calls'` at exactly this index emits `step{reason:'capped'}` instead of `step{reason:'tool'}`. Reflects `stopWhen: stepCountIs(maxSteps)` having fired. */
   maxSteps?: number
+  /** Slice 8 — single point of tool-result observability. Service binds it to `logger.debug({ layer: 'tool', ... })`. */
+  onToolResult?: (info: {
+    toolCallId: string
+    toolName: string
+    durationMs: number
+    isError: boolean
+  }) => void
 }
 
-export function createTranslateCtx(opts?: { now?: () => number; maxSteps?: number }): TranslateCtx {
+export function createTranslateCtx(opts?: {
+  now?: () => number
+  maxSteps?: number
+  onToolResult?: TranslateCtx['onToolResult']
+}): TranslateCtx {
   return {
     stepIndex: 0,
     toolStartTimes: new Map(),
     now: opts?.now ?? performance.now.bind(performance),
     maxSteps: opts?.maxSteps,
+    onToolResult: opts?.onToolResult,
   }
 }
 
@@ -193,27 +205,37 @@ export function translate(part: AnyStreamPart, ctx: TranslateCtx): SSEEvent | nu
       const start = ctx.toolStartTimes.get(part.toolCallId)
       const durationMs = start === undefined ? 0 : Math.max(0, ctx.now() - start)
       ctx.toolStartTimes.delete(part.toolCallId)
+      const isError = looksLikeError(part.output)
+      const rounded = Math.round(durationMs)
+      ctx.onToolResult?.({
+        toolCallId: part.toolCallId,
+        toolName: part.toolName,
+        durationMs: rounded,
+        isError,
+      })
       return {
         event: 'tool-call-result',
-        data: {
-          id: part.toolCallId,
-          output: part.output,
-          isError: looksLikeError(part.output),
-          durationMs: Math.round(durationMs),
-        },
+        data: { id: part.toolCallId, output: part.output, isError, durationMs: rounded },
       }
     }
     case 'tool-error': {
       const start = ctx.toolStartTimes.get(part.toolCallId)
       const durationMs = start === undefined ? 0 : Math.max(0, ctx.now() - start)
       ctx.toolStartTimes.delete(part.toolCallId)
+      const rounded = Math.round(durationMs)
+      ctx.onToolResult?.({
+        toolCallId: part.toolCallId,
+        toolName: part.toolName,
+        durationMs: rounded,
+        isError: true,
+      })
       return {
         event: 'tool-call-result',
         data: {
           id: part.toolCallId,
           output: errorToOutput(part.error),
           isError: true,
-          durationMs: Math.round(durationMs),
+          durationMs: rounded,
         },
       }
     }

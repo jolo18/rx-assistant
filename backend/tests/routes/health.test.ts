@@ -11,6 +11,8 @@ const baseEnv = {
   DATABASE_PATH: ':memory:',
   PORT: 8787,
   LOG_LEVEL: 'silent' as const,
+  LOG_PRETTY: false,
+  CORS_ORIGINS: '*',
 }
 
 type HealthBody = {

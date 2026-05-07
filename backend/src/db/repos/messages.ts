@@ -2,6 +2,7 @@ import { and, asc, eq, gt, gte, isNull, lt, sql } from 'drizzle-orm'
 import type { DB } from '../client.ts'
 import { newId } from '../../lib/ids.ts'
 import { httpError } from '../../lib/errors.ts'
+import { noopLogger, type Logger } from '../../lib/logger.ts'
 import { conversations, messages, type ContentPart, type Message, type Role } from '../schema.ts'
 
 export type AppendMessageInput = {
@@ -12,7 +13,13 @@ export type AppendMessageInput = {
   id?: string
 }
 
-export function makeMessagesRepo(db: DB) {
+export type RepoOpts = { logger?: Logger }
+
+export function makeMessagesRepo(db: DB, opts: RepoOpts = {}) {
+  const log = opts.logger ?? noopLogger
+  const base = { layer: 'repo' as const, table: 'messages' as const }
+  const round = (n: number) => Math.round(n * 100) / 100
+
   function nextPosition(conversationId: string): number {
     const row = db
       .select({ max: sql<number | null>`MAX(${messages.position})` })
@@ -25,6 +32,7 @@ export function makeMessagesRepo(db: DB) {
 
   return {
     append(input: AppendMessageInput): { id: string; position: number } {
+      const t0 = performance.now()
       const id = input.id ?? newId()
       const now = Date.now()
       let position = 0
@@ -57,16 +65,37 @@ export function makeMessagesRepo(db: DB) {
           .run()
       })
 
+      log.debug(
+        {
+          ...base,
+          op: 'append',
+          durationMs: round(performance.now() - t0),
+          role: input.role,
+          position,
+        },
+        'repo.append',
+      )
       return { id, position }
     },
 
     loadHistory(conversationId: string): Message[] {
-      return db
+      const t0 = performance.now()
+      const rows = db
         .select()
         .from(messages)
         .where(eq(messages.conversationId, conversationId))
         .orderBy(asc(messages.position))
         .all()
+      log.debug(
+        {
+          ...base,
+          op: 'loadHistory',
+          durationMs: round(performance.now() - t0),
+          rowsAffected: rows.length,
+        },
+        'repo.loadHistory',
+      )
+      return rows
     },
 
     /**
@@ -75,6 +104,7 @@ export function makeMessagesRepo(db: DB) {
      * Two-pass shift via negative offsets keeps the invariant intact.
      */
     deleteAndRenumber(id: string): void {
+      const t0 = performance.now()
       const target = db
         .select({
           conversationId: messages.conversationId,
@@ -84,7 +114,13 @@ export function makeMessagesRepo(db: DB) {
         .where(eq(messages.id, id))
         .get()
 
-      if (!target) return
+      if (!target) {
+        log.debug(
+          { ...base, op: 'deleteAndRenumber', durationMs: round(performance.now() - t0), found: false, id },
+          'repo.deleteAndRenumber',
+        )
+        return
+      }
 
       db.transaction((tx) => {
         // Pass 1: shift later rows to negative offsets.
@@ -112,6 +148,10 @@ export function makeMessagesRepo(db: DB) {
           )
           .run()
       })
+      log.debug(
+        { ...base, op: 'deleteAndRenumber', durationMs: round(performance.now() - t0), found: true, id },
+        'repo.deleteAndRenumber',
+      )
     },
 
     /**
@@ -120,6 +160,7 @@ export function makeMessagesRepo(db: DB) {
      * user message, or end of conversation).
      */
     deleteUserTurn(userMessageId: string): void {
+      const t0 = performance.now()
       const target = db
         .select({
           id: messages.id,
@@ -211,6 +252,15 @@ export function makeMessagesRepo(db: DB) {
           .where(eq(conversations.id, target.conversationId))
           .run()
       })
+      log.debug(
+        {
+          ...base,
+          op: 'deleteUserTurn',
+          durationMs: round(performance.now() - t0),
+          turnLength: turnLength === Infinity ? null : turnLength,
+        },
+        'repo.deleteUserTurn',
+      )
     },
   }
 }

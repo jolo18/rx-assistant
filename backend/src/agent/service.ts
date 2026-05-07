@@ -15,6 +15,7 @@
 import { stepCountIs, streamText, type LanguageModel, type ModelMessage, type ToolSet } from 'ai'
 import { newId } from '../lib/ids.ts'
 import { httpError, toErrorEvent } from '../lib/errors.ts'
+import { noopLogger, type Logger } from '../lib/logger.ts'
 import { calculate as calculateCost } from '../lib/pricing.ts'
 import type { DB } from '../db/client.ts'
 import { makeConversationsRepo } from '../db/repos/conversations.ts'
@@ -41,6 +42,10 @@ export type RunAgentDeps = {
   tools: ToolSet
   env: RunAgentEnv
   now?: () => number
+  /** Optional pino logger. Defaults to a silent noop so tests don't have to inject. */
+  logger?: Logger
+  /** Optional callback invoked when the agent has summary fields ready for the http.request line. */
+  setLogExtra?: (extra: Record<string, unknown>) => void
 }
 
 export type RunAgentArgs = {
@@ -63,9 +68,11 @@ export async function* runAgent(
 ): AsyncGenerator<SSEEvent, void, unknown> {
   const { db, model, tools, env } = deps
   const now = deps.now ?? (() => performance.now())
-  const conversations = makeConversationsRepo(db)
-  const messages = makeMessagesRepo(db)
-  const usage = makeUsageRepo(db)
+  const log = (deps.logger ?? noopLogger).child({ layer: 'service', service: 'agent' })
+  const repoLog = (deps.logger ?? noopLogger).child({ layer: 'repo' })
+  const conversations = makeConversationsRepo(db, { logger: repoLog.child({ table: 'conversations' }) })
+  const messages = makeMessagesRepo(db, { logger: repoLog.child({ table: 'messages' }) })
+  const usage = makeUsageRepo(db, { logger: repoLog.child({ table: 'usage' }) })
 
   // 1. Resolve / create conversation (FR-14, F-10).
   let conversationId = args.conversationId
@@ -102,11 +109,37 @@ export async function* runAgent(
     },
   }
 
+  log.info(
+    {
+      op: 'run.start',
+      conversationId,
+      messageId: streamMessageId,
+      userMessageId: userMsg.id,
+      model: modelId,
+    },
+    'agent.run.start',
+  )
+
   // 4. Build messages for the model.
   const stored = messages.loadHistory(conversationId)
   const modelMessages: ModelMessage[] = storedToModelMessages(stored)
 
-  const ctx = createTranslateCtx({ now, maxSteps: env.MAX_AGENT_STEPS })
+  const toolLog = (deps.logger ?? noopLogger).child({ layer: 'tool' })
+  const ctx = createTranslateCtx({
+    now,
+    maxSteps: env.MAX_AGENT_STEPS,
+    onToolResult: (info) => {
+      toolLog.debug(
+        {
+          tool: info.toolName,
+          toolCallId: info.toolCallId,
+          durationMs: info.durationMs,
+          isError: info.isError,
+        },
+        'tool.result',
+      )
+    },
+  })
   const t0 = now()
 
   // 5. Compose abort signals: caller's request-scoped + AI_TIMEOUT_MS.
@@ -211,6 +244,34 @@ export async function* runAgent(
           costUsd,
         },
       }
+
+      log.info(
+        {
+          op: 'run.finish',
+          conversationId,
+          messageId: lastAssistantId,
+          model: modelId,
+          inputTokens: totals.inputTokens,
+          outputTokens: totals.outputTokens,
+          cacheReadTokens: totals.cacheReadTokens,
+          cacheCreateTokens: totals.cacheCreateTokens,
+          costUsd,
+          latencyMs,
+          steps: ctx.stepIndex,
+        },
+        'agent.run.finish',
+      )
+      // Surface chat-extras to the http.request log line.
+      deps.setLogExtra?.({
+        model: modelId,
+        conversationId,
+        inputTokens: totals.inputTokens,
+        outputTokens: totals.outputTokens,
+        cacheReadTokens: totals.cacheReadTokens,
+        cacheCreateTokens: totals.cacheCreateTokens,
+        costUsd,
+        agentSteps: ctx.stepIndex,
+      })
     }
   } catch (err) {
     // F-12: persist a single empty-content assistant row to mark the failed turn.
@@ -225,6 +286,15 @@ export async function* runAgent(
       // If even the recovery insert fails, swallow — we still want to emit
       // the SSE error event so the client gets closure.
     }
+    log.error(
+      {
+        op: 'run.error',
+        conversationId,
+        messageId: streamMessageId,
+        err: err instanceof Error ? { name: err.name, message: err.message } : { value: String(err) },
+      },
+      'agent.run.error',
+    )
     yield { event: 'error', data: toErrorEvent(err) }
   } finally {
     clearTimeout(timeoutTimer)

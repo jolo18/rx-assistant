@@ -6,9 +6,10 @@ import { makeMessagesRepo } from '../db/repos/messages.ts'
 import { makeUsageRepo } from '../db/repos/usage.ts'
 import { httpError, toHttpEnvelope } from '../lib/errors.ts'
 import { CreateConversationSchema } from '../lib/validate.ts'
+import type { AppEnv } from '../types/hono-env.ts'
 
 export function conversationsRoute(handle: DbHandle) {
-  const app = new Hono()
+  const app = new Hono<AppEnv>()
   const conversations = makeConversationsRepo(handle.db)
   const messages = makeMessagesRepo(handle.db)
   const usage = makeUsageRepo(handle.db)

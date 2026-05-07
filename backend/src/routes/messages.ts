@@ -3,9 +3,10 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import type { DbHandle } from '../db/client.ts'
 import { makeMessagesRepo } from '../db/repos/messages.ts'
 import { HttpError, toHttpEnvelope } from '../lib/errors.ts'
+import type { AppEnv } from '../types/hono-env.ts'
 
 export function messagesRoute(handle: DbHandle) {
-  const app = new Hono()
+  const app = new Hono<AppEnv>()
   const messages = makeMessagesRepo(handle.db)
 
   /**

@@ -37,9 +37,32 @@ Do **not** import `@anthropic-ai/sdk` directly. Provider portability is a hard r
 | `bun install` | install deps |
 | `bun test` | run all tests once |
 | `bun test --watch` | TDD loop |
-| `bun run dev` | dev server on :8787 |
+| `bun run dev` | dev server on :8787 (structured JSON logs) |
+| `bun run dev:pretty` | dev server piped through pino-pretty (human-readable) |
 | `bun run migrate` | apply Drizzle migrations |
 | `bun run typecheck` | `tsc --noEmit` |
+
+## How to view logs
+
+Default — structured JSON to stdout. Every line carries `requestId`, `layer` (`http \| service \| repo \| tool \| boot`), and a short dot-separated `msg` verb. Greppable, ships cleanly to any aggregator.
+
+```
+$ bun run dev
+{"level":30,"time":...,"requestId":"01KR...","layer":"http","msg":"http.request","method":"POST","path":"/api/chat","status":200,...}
+```
+
+Dev-pretty — human-readable, colored, single-line:
+
+```
+$ bun run dev:pretty
+[12:34:56.789] INFO (rx-assistant): http.request requestId=01KR... method=POST path=/api/chat status=200 latencyMs=842
+```
+
+Or set `LOG_PRETTY=true` in `.env` to attach pino-pretty in-process.
+
+Tail one request across all layers: `tail -f dev.log | jq 'select(.requestId == "<id>")'`. The `X-Request-Id` response header is always set so a Phase 2 client can echo it for support.
+
+**Tracing (deferred, Phase 4 anchor):** `streamText({ experimental_telemetry: { isEnabled: true, functionId: 'rx-assistant.chat' } })` enables AI SDK OTel spans. Wire an OTel SDK + exporter in Phase 4.
 
 ## Conventions
 

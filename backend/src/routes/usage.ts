@@ -3,9 +3,10 @@ import type { DbHandle } from '../db/client.ts'
 import { makeConversationsRepo } from '../db/repos/conversations.ts'
 import { makeUsageRepo } from '../db/repos/usage.ts'
 import { httpError, toHttpEnvelope } from '../lib/errors.ts'
+import type { AppEnv } from '../types/hono-env.ts'
 
 export function usageRoute(handle: DbHandle) {
-  const app = new Hono()
+  const app = new Hono<AppEnv>()
   const conversations = makeConversationsRepo(handle.db)
   const usage = makeUsageRepo(handle.db)
 
