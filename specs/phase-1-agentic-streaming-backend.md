@@ -326,15 +326,18 @@ There is no `done` event — `metadata` followed by stream close is the terminal
 
 ### 3.3 Other endpoints (concise)
 
-- `GET /api/conversations/:id` → `{ id, title, createdAt, updatedAt, messages: [{ id, role, content, position, createdAt, usage? }] }`. 404 if not found.
+- `GET /api/conversations` → `[{ id, title, createdAt, updatedAt }]`, sorted by `updatedAt` desc. List view excludes `messages` to keep the payload small.
+- `GET /api/conversations/:id` → `{ id, title, createdAt, updatedAt, messages: [{ id, role, content, position, createdAt, usage? }] }`. 404 if not found. `usage` is attached only to assistant rows that have a recorded usage row (one per turn; see §2.3 / Step 0.5 #4).
+- `POST /api/conversations` — body `{ title?: string }` (max 120 chars); returns `201` with `{ id, title, createdAt, updatedAt }`. Empty body → conversation with `title: null`. Oversize / invalid body → `400 INVALID_INPUT`.
+- `DELETE /api/conversations/:id` — returns `204` whether or not the id exists (idempotent). FK `ON DELETE CASCADE` drops dependent messages and usage rows; no orphan rows remain.
 - `DELETE /api/messages/:id` — accepts **only user-message ids**; cascade-deletes the user message plus every subsequent assistant/tool message until the next user message (or end of conversation), then re-numbers `position` atomically inside a transaction (two-pass shift, see §2.2). Returns:
   - `204` on success
   - `400 INVALID_TARGET` if the id resolves to an `assistant` or `tool` row (use case: client must delete a whole exchange, not just the response)
   - `404 NOT_FOUND` if the id does not exist
 
   Rationale: keeping NFR-8 (no orphan `tool_use` without `tool_result`) holds trivially when an entire turn is the unit of deletion.
-- `GET /api/usage/:conversationId` → `{ totals: { inputTokens, outputTokens, costUsd }, perMessage: [...] }`.
-- `GET /health` → `{ status: 'ok', migrations: 'applied', db: 'reachable' }`. Returns 503 if DB unreachable or migrations pending.
+- `GET /api/usage/:conversationId` → `{ totals: { inputTokens, outputTokens, cacheReadTokens, cacheCreateTokens, costUsd }, perMessage: [...] }`. 404 if the conversation does not exist.
+- `GET /health` → `{ status: 'ok', migrations: 'applied', db: 'reachable' }`. Returns 503 with `status: 'degraded', db: 'unreachable'` if the DB ping fails.
 
 ### 3.4 Error envelope (non-stream)
 
@@ -342,9 +345,11 @@ There is no `done` event — `metadata` followed by stream close is the terminal
 { "error": { "code": "INVALID_INPUT", "message": "message must be a non-empty string", "details": [ ... ] } }
 ```
 
-Codes used: `INVALID_INPUT`, `INVALID_TARGET`, `NOT_FOUND`, `UPSTREAM_TIMEOUT`, `UPSTREAM_TRUNCATED`, `CONTENT_FILTERED`, `UPSTREAM_ERROR`, `INTERNAL`, `RATE_LIMITED`.
+Codes used: `INVALID_INPUT`, `INVALID_TARGET`, `NOT_FOUND`, `UPSTREAM_TIMEOUT`, `UPSTREAM_TRUNCATED`, `CONTENT_FILTERED`, `UPSTREAM_ERROR`, `UNKNOWN_MODEL`, `INTERNAL`, `RATE_LIMITED`.
 
 > `RATE_LIMITED` is **reserved** for propagating upstream provider 429s (e.g. OpenRouter throttling). Phase 1 does not rate-limit the API itself — see §1.3.
+>
+> `UNKNOWN_MODEL` is a 500-level boot-time invariant failure: `pricing.assertKnown(env.OPENROUTER_MODEL)` rejects any id not registered in `src/lib/pricing.ts`. Surfaces only at startup; cannot be triggered by client traffic.
 
 ---
 
@@ -524,21 +529,49 @@ backend/
 │   │   └── health.ts
 │   ├── lib/
 │   │   ├── sse.ts                # tiny encoder used by translate.ts
-│   │   ├── pricing.ts            # token → USD per model id
-│   │   ├── errors.ts             # httpError + toErrorEvent
+│   │   ├── pricing.ts            # token → USD per model id; UnknownModelError
+│   │   ├── errors.ts             # httpError + toErrorEvent + envelope shapes
 │   │   ├── ids.ts                # ulid()
-│   │   └── logger.ts             # pino instance
-│   └── lib/validate.ts           # zod schemas reused by routes + tools
+│   │   ├── logger.ts             # pino root + childForRequest + noopLogger
+│   │   ├── validate.ts           # zod schemas reused by routes + tools
+│   │   └── middleware/
+│   │       ├── requestId.ts      # X-Request-Id propagation
+│   │       ├── logger.ts         # http.request line + c.var.logger child
+│   │       ├── error.ts          # app.onError → INTERNAL fallback
+│   │       └── cors.ts           # CORS preflight + origin allowlist
+│   └── types/
+│       └── hono-env.ts           # AppEnv (Variables: requestId, logger, logExtra)
 └── tests/
-    ├── pricing.test.ts
-    ├── tools.test.ts
-    ├── translate.test.ts
-    ├── repos.test.ts
+    ├── _helpers/
+    │   ├── buildApp.ts           # test app factory + stubTool
+    │   ├── captureLogger.ts      # pino → array, for layered logging assertions
+    │   ├── collectSSE.ts         # SSE stream parser
+    │   └── scriptModel.ts        # MockLanguageModelV3 wrapper
+    ├── boot.test.ts
+    ├── env.test.ts
+    ├── agent/
+    │   ├── translate.test.ts
+    │   └── tools/{drug_info,symptom_lookup,registry}.test.ts
+    ├── contract/
+    │   ├── round-trip.test.ts    # C-3 structural shape assertion
+    │   ├── sse-taxonomy.test.ts  # C-1 wire catalog
+    │   └── types.test.ts         # C-2 typecheck-only assignability
+    ├── db/client.test.ts
+    ├── lib/{errors,pricing,sse,validate}.test.ts
+    ├── logging/
+    │   ├── repos.test.ts         # debug lines per repo op
+    │   └── service.test.ts       # service + repo + tool requestId propagation
+    ├── middleware/{requestId,logger,error,cors}.test.ts
+    ├── repos/{conversations,messages,usage}.test.ts
     └── routes/
-        ├── chat.test.ts
+        ├── chat.test.ts          # I-1, I-1r, I-2, I-2e, I-3, I-4, I-8, I-9, I-10, I-11
         ├── conversations.test.ts
+        ├── messages.test.ts
+        ├── usage.test.ts
         └── health.test.ts
 ```
+
+> Layout grew during Slice 8 — `lib/middleware/` was added (4 files: requestId, logger, error, cors), and `types/hono-env.ts` was added so `new Hono<AppEnv>()` gets autocomplete on `c.var.{requestId,logger,logExtra}`. Test layout grew with every slice; `tests/_helpers/` and `tests/{logging,middleware,contract}/` are new dirs.
 
 ### 4.6 Required environment variables (Phase 1 subset)
 
@@ -553,7 +586,11 @@ These get codified in `.env.example` in Phase 4; listed here so the spec is self
 | `TOOL_TIMEOUT_MS` | optional | `5000` | **Independent** of `AI_TIMEOUT_MS`; per-tool budget enforced inside each tool's `execute` (F-4) |
 | `DATABASE_PATH` | optional | `./data/app.db` | Plain filesystem path consumed by `bun:sqlite` (no `file:` prefix). In container, `/data/app.db`. |
 | `PORT` | optional | `8787` | |
-| `LOG_LEVEL` | optional | `info` | pino level |
+| `LOG_LEVEL` | optional | `info` | pino level: `silent \| fatal \| error \| warn \| info \| debug \| trace` |
+| `LOG_PRETTY` | optional | `false` | When `true`, attaches `pino-pretty` as an in-process transport. Default keeps stdout structured JSON for any container/log driver. `bun run dev:pretty` is the equivalent via shell pipe. |
+| `CORS_ORIGINS` | optional | `*` | Either `*` (allow all — dev default) or a comma-separated allowlist (`https://app.example.com,https://staging.example.com`). Mounted as the first middleware so preflight requests bypass auth/log middleware. |
+
+> **Runtime note — `Bun.serve` configuration.** SSE responses outlive Bun's default 10-second idle window, which kills `/api/chat` mid-agent-loop. The entry point at `src/index.ts` sets `idleTimeout: 0`; upstream caps come from `AI_TIMEOUT_MS` (whole-stream budget) and `TOOL_TIMEOUT_MS` (per-tool). F-2 / F-11 still cover hung upstreams + client disconnects.
 
 ### 4.7 Internal interface contracts
 
@@ -565,24 +602,71 @@ type RunAgentArgs = {
   modelOverride?: string
   abortSignal?: AbortSignal
 }
-type RunAgentResult = AsyncIterable<SSEEvent>   // yielded for the route to write
+type RunAgentDeps = {
+  db: DB
+  model: LanguageModel
+  tools: ToolSet
+  env: { OPENROUTER_MODEL: string; MAX_AGENT_STEPS: number; AI_TIMEOUT_MS: number }
+  now?: () => number
+  /** Optional pino logger (Slice 8). Defaults to noopLogger when omitted. */
+  logger?: pino.Logger
+  /** Optional callback that receives the chat-extras for the http.request log line
+   *  (model, conversationId, tokens, costUsd, agentSteps). Wired by routes/chat.ts. */
+  setLogExtra?: (extra: Record<string, unknown>) => void
+}
+type RunAgentResult = AsyncGenerator<SSEEvent, void, unknown>   // yielded for the route to write
 
 // agent/translate.ts
-function translate(part: AISDKStreamPart, ctx: TranslateCtx): SSEEvent | null
-// returns null for parts we intentionally don't surface (e.g. step-start).
+function translate(part: AnyStreamPart, ctx: TranslateCtx): SSEEvent | null
+// returns null for parts we intentionally don't surface (e.g. step-start, text-start, finish).
 // Mid-stream exceptions (provider throws while iterating fullStream) are NOT
 // returned here — the caller wraps the for-await loop in a try/catch and emits
-// an error event. See §4.B for the rationale.
+// an error event. See §4.8 for the rationale.
 
-// db/repos/messages.ts
+type TranslateCtx = {
+  stepIndex: number
+  toolStartTimes: Map<string, number>
+  now: () => number
+  /** Slice 6 — when set, a `finish-step{tool-calls}` at exactly this index emits
+   *  `step{reason:'capped'}` instead of `step{reason:'tool'}`. Reflects
+   *  `stopWhen: stepCountIs(maxSteps)` having fired. */
+  maxSteps?: number
+  /** Slice 8 — single point of tool-result observability. Service binds this to
+   *  `logger.debug({ layer: 'tool', ... })`. */
+  onToolResult?: (info: {
+    toolCallId: string
+    toolName: string
+    durationMs: number
+    isError: boolean
+  }) => void
+}
+
+// db/repos/messages.ts — bun:sqlite + Drizzle are synchronous; no `await` at call sites.
 type AppendMessageInput = {
   conversationId: string
   role: 'user' | 'assistant' | 'tool'
   content: ContentPart[] | string
+  /** Optional pre-allocated id, used by the agent service to make `start.messageId`
+   *  match the persisted final-assistant row (Slice 6). */
+  id?: string
 }
-function append(input: AppendMessageInput): Promise<{ id: string; position: number }>
-function deleteAndRenumber(id: string): Promise<void>
-function deleteUserTurn(userMessageId: string): Promise<void>   // §3.3 cascade delete
+type RepoOpts = { logger?: pino.Logger }   // Slice 8 — default noop, per-method debug logs
+
+function append(input: AppendMessageInput): { id: string; position: number }
+function loadHistory(conversationId: string): Message[]
+function deleteAndRenumber(id: string): void
+function deleteUserTurn(userMessageId: string): void   // §3.3 cascade delete
+
+// types/hono-env.ts — request-scoped variables exposed via c.var.*
+type AppEnv = {
+  Variables: {
+    requestId: string                 // set by requestId middleware
+    logger: pino.Logger               // child of root, baked-in requestId
+    logExtra: Record<string, unknown> // mutable bag merged into terminal http.request line
+  }
+}
+
+// All routes use `new Hono<AppEnv>()` so c.var fields are typed.
 ```
 
 ### 4.8 Stream lifecycle — exception handling
@@ -614,6 +698,60 @@ This guarantees:
 - A client that has received `start` always also receives a terminal `metadata` **or** `error` before the stream closes.
 - F-1 (provider error mid-stream), F-2 (timeout), F-11 (client disconnect — surfaces as an `AbortError`) all funnel through the same catch.
 - F-12 (atomic persistence): the `persistPartial` path never writes a half-built `content` array — it persists the assistant row with `content: []` if no complete part was emitted, or with the complete-only prefix otherwise.
+
+### 4.9 Layered structured logging
+
+Slice 8 introduced a uniform pino-based logging schema that correlates lines across all four layers via `requestId` (set by the requestId middleware, baked into a child logger at the request boundary).
+
+#### Field conventions
+
+Every line carries:
+
+| Field | Source | Notes |
+| --- | --- | --- |
+| `level`, `time`, `pid` | pino defaults | `level` is the standard pino numeric (30=info, 40=warn, 50=error) |
+| `msg` | hand-set | short, lowercase, dot-separated verb — `http.request`, `agent.run.start`, `repo.append`, `tool.result`, `boot.listening` |
+| `requestId` | `c.var.requestId` (via child logger) | absent only on `boot.*` lines emitted before any request |
+| `layer` | hand-set | `'http' \| 'service' \| 'repo' \| 'tool' \| 'boot'` |
+
+Per-layer required fields:
+
+| Layer | Required fields |
+| --- | --- |
+| `http` | `method, path, status, latencyMs, userAgent, requestBytes, responseBytes` (responseBytes is `null` for SSE; `streamed: true` is set instead). One info-level line per request, terminal. |
+| `service` | `service: 'agent', op ∈ {run.start, run.finish, run.error}, conversationId?, messageId?, durationMs?` |
+| `repo` | `table ∈ {conversations, messages, usage}, op, durationMs, rowsAffected?` — debug-level, one per repo method call |
+| `tool` | `tool, toolCallId, durationMs, isError` — debug-level, emitted by `translate.ts` via `TranslateCtx.onToolResult` |
+| `boot` | server lifecycle (`boot.listening` once at startup) |
+
+#### Per-`/api/chat` happy-path timeline (info level only)
+
+```
+boot.listening                                                     // ×1, at startup (no requestId)
+agent.run.start { conversationId, messageId, model }               // ×1
+agent.run.finish { tokens, costUsd, latencyMs, steps }             // ×1
+http.request { method, path, status, latencyMs, ...chat-extras }   // ×1, terminal
+```
+
+At `LOG_LEVEL=debug`, `repo.*` (one per query) and `tool.result` (one per tool call) lines fan out underneath, all sharing the same `requestId`.
+
+The chat route writes summary fields (`model, conversationId, inputTokens, outputTokens, cacheReadTokens, costUsd, agentSteps`) into `c.var.logExtra`; the logger middleware merges them into the terminal `http.request` line so we don't get a second log line racing the response.
+
+#### Transport
+
+| Mode | Command | Output |
+| --- | --- | --- |
+| Default | `bun run dev` | Structured JSON to stdout. Container/log driver-friendly. |
+| Dev-pretty (pipe) | `bun run dev:pretty` | Pipes through `pino-pretty -c -t HH:MM:ss.l --ignore pid,hostname --singleLine` |
+| Dev-pretty (in-process) | `LOG_PRETTY=true bun run dev` | Same output via in-process pino transport |
+| Tail one request | `tail -f dev.log \| jq 'select(.requestId == "<id>")'` | Full layered timeline for one request |
+| Phase 4 prod | (no app change) | Container stdout → log driver → Loki / Datadog / CloudWatch |
+
+The `X-Request-Id` response header is always set so a Phase 2 client can capture it for support correlation.
+
+#### Tracing — deferred (Phase 4 anchor)
+
+`streamText({ experimental_telemetry: { isEnabled: true, functionId: 'rx-assistant.chat' } })` enables AI SDK OTel spans on a NoopTracer. Wire an OTel SDK + OTLP exporter in Phase 4; no other code changes required.
 
 ---
 
@@ -750,3 +888,53 @@ All architecture axes resolved (§4). This spec is the contract for Phase 1 impl
 | Storage shape | E1 — JSON content-parts blob per message row |
 | Validation | F1 — Zod |
 | IDs | G1 — ULID |
+
+---
+
+## 9. Implementation notes & deviations (post-Phase-1 backport)
+
+Phase 1 backend shipped at commit `e82e3e9` across 8 slices + 2 hotfixes. Several spec sections were back-ported in-place from the as-built code: §3.3 (DELETE conversation idempotence + POST response shape), §3.4 (added `UNKNOWN_MODEL`), §4.5 (added `cors.ts`, `types/hono-env.ts` and the test layout that grew), §4.6 (added `LOG_PRETTY`, `CORS_ORIGINS`, `Bun.serve idleTimeout=0` runtime note), §4.7 (sync repo signatures, `AppendMessageInput.id?`, `TranslateCtx.maxSteps` / `onToolResult`, `RunAgentDeps.logger?` / `setLogExtra?`, `AppEnv` type), and a new §4.9 (layered logging schema).
+
+The remaining items below are implementation-time discoveries that didn't change the spec's contracts but are worth recording so future spec readers / Phase 2 authors know what to expect.
+
+### 9.1 AI SDK v6 quirks discovered during Slice 6
+
+| # | Discovery | Where it bit us | How we handled it |
+| --- | --- | --- | --- |
+| 9.1.1 | `LanguageModelV3FinishReason` is `{ unified, raw }`, not a bare string | First Slice 6 test run — `finish-step.finishReason` arrived `undefined`, translate routed to `error{UPSTREAM_ERROR}` | `tests/_helpers/scriptModel.ts::normalizeFinishReason` lifts string form to object before enqueuing. Tests can still write `'stop'` for ergonomics. |
+| 9.1.2 | AI SDK v6 ships `MockLanguageModelV3` (the spec/plan referenced V2) | Original test plan called for `MockLanguageModelV2` from `ai/test`; that export doesn't exist in v6 | Test helpers use `MockLanguageModelV3`; behavior identical. Treat any "V2" reference in archived planning docs as a typo for V3. |
+| 9.1.3 | Provider stream parts (`LanguageModelV3StreamPart`) use `delta` for text/reasoning; AI SDK's lifted `TextStreamPart` uses `text` | Wrote translate against the lifted layer (correct), but mocks must enqueue provider-layer parts using `delta` | `translate.ts` matches the lifted shape. `scriptModel` helpers enqueue provider-layer parts. |
+| 9.1.4 | `streamText().response.messages` returns persistable `ModelMessage[]` directly | Originally planned to reconstruct assistant + tool messages from the `fullStream` part timeline | `agent/service.ts` awaits `result.response`, walks `responseMessages`, and persists each row as-is via `serializeContent` (which mostly identity-maps with one `text` wrap for stray strings). Simpler and more lossless than buffer-and-rebuild. |
+
+### 9.2 Plan-vs-reality calibration
+
+| # | Spec / plan claim | Reality |
+| --- | --- | --- |
+| 9.2.1 | Phase 1 Verification: "all unit + integration + contract tests green (~25–30 tests)" | **170 tests** across 28 files at Slice 8 close. The vertical-slice TDD discipline + thorough middleware tests inflated coverage well beyond the early estimate. Worth keeping the spirit of the estimate (one number per slice) without treating it as a target. |
+| 9.2.2 | Slice 5 plan called for C-3 to "pass `messages` to `streamText({ messages, model: mockModel })` and assert no provider-side validation error" | Implemented as a structural shape assertion via `storedToModelMessages` + per-shape unit checks (`tests/contract/round-trip.test.ts`). The full runtime path is exercised end-to-end by Slice 6 I-1 / I-2 (chat → DB persist → next request loads correctly). C-3 stands as the structural side; together they cover the round-trip claim. |
+| 9.2.3 | `Bun.serve` was assumed to be transparent for SSE | First live OpenRouter smoke died at the 10-second idle window mid-tool-call (commit `15af06c`). Added `idleTimeout: 0` and the runtime note in §4.6. |
+
+### 9.3 Runtime registry growth (`pricing.ts`)
+
+The original spec's §4.6 implied an Anthropic-centric model registry. The first smoke test rejected `deepseek/deepseek-v4` (not a real OpenRouter id), forcing a discovery pass against `https://openrouter.ai/api/v1/models`. `pricing.ts` now carries:
+
+| Family | Registered ids |
+| --- | --- |
+| Anthropic | `claude-sonnet-4.6`, `claude-sonnet-4.5`, `claude-haiku-4.5` |
+| DeepSeek | `deepseek-chat`, `deepseek-chat-v3.1`, `deepseek-v3.1-terminus`, `deepseek-v3.2`, `deepseek-v3.2-exp`, `deepseek-v4-flash`, `deepseek-v4-pro`, `deepseek-r1` |
+
+`pricing.assertKnown(env.OPENROUTER_MODEL)` runs at boot — adding a model is one row in `pricing.ts`. Live verification with `deepseek/deepseek-v4-flash` returned a 3-step agent loop in 35.7 s for $0.0016 (commit log on `e82e3e9`).
+
+### 9.4 Commit history
+
+| Commit | Slice | Notes |
+| --- | --- | --- |
+| `5c693be` | initial | docs + spec + plan |
+| `90332b3` | 4 | healthcare tools |
+| `086b999` | 5 | translate fullStream → SSE |
+| `2576448` | 6 | agent service + chat |
+| `15af06c` | hotfix | Bun.serve idleTimeout |
+| `09c6036` | chore | .env.example + DeepSeek pricing v1 |
+| `5fbb5fe` | chore | DeepSeek pricing v2 (verified ids) |
+| `1b6a58a` | 7 | conversation/message/usage routes |
+| `e82e3e9` | 8 | structured layered logging — Phase 1 closed |
