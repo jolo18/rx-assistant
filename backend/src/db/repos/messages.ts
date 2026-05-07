@@ -8,6 +8,8 @@ export type AppendMessageInput = {
   conversationId: string
   role: Role
   content: ContentPart[] | string
+  /** Optional pre-allocated id (e.g. for the stream's `start` messageId). */
+  id?: string
 }
 
 export function makeMessagesRepo(db: DB) {
@@ -23,7 +25,7 @@ export function makeMessagesRepo(db: DB) {
 
   return {
     append(input: AppendMessageInput): { id: string; position: number } {
-      const id = newId()
+      const id = input.id ?? newId()
       const now = Date.now()
       let position = 0
 

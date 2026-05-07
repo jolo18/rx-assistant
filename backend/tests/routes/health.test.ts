@@ -30,7 +30,7 @@ describe('GET /health (FR-15, I-7)', () => {
   })
 
   test('returns 200 with status: ok, migrations: applied, db: reachable', async () => {
-    const app = buildApp(baseEnv, h)
+    const app = buildApp({ env: baseEnv, db: h, model: {} as never, tools: {} })
     const res = await app.request('/health')
     expect(res.status).toBe(200)
     const body = (await res.json()) as HealthBody
@@ -38,13 +38,13 @@ describe('GET /health (FR-15, I-7)', () => {
   })
 
   test('content-type is application/json', async () => {
-    const app = buildApp(baseEnv, h)
+    const app = buildApp({ env: baseEnv, db: h, model: {} as never, tools: {} })
     const res = await app.request('/health')
     expect(res.headers.get('content-type')).toMatch(/application\/json/)
   })
 
   test('returns 503 when DB is unreachable', async () => {
-    const app = buildApp(baseEnv, h)
+    const app = buildApp({ env: baseEnv, db: h, model: {} as never, tools: {} })
     h.sqlite.close() // simulate DB outage
     const res = await app.request('/health')
     expect(res.status).toBe(503)

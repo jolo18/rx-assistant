@@ -132,13 +132,16 @@ export type TranslateCtx = {
   toolStartTimes: Map<string, number>
   /** Monotonic clock injected so tests can assert non-negative durations. */
   now: () => number
+  /** When set, a `finish-step` with `finishReason: 'tool-calls'` at exactly this index emits `step{reason:'capped'}` instead of `step{reason:'tool'}`. Reflects `stopWhen: stepCountIs(maxSteps)` having fired. */
+  maxSteps?: number
 }
 
-export function createTranslateCtx(opts?: { now?: () => number }): TranslateCtx {
+export function createTranslateCtx(opts?: { now?: () => number; maxSteps?: number }): TranslateCtx {
   return {
     stepIndex: 0,
     toolStartTimes: new Map(),
     now: opts?.now ?? performance.now.bind(performance),
+    maxSteps: opts?.maxSteps,
   }
 }
 
@@ -222,6 +225,9 @@ export function translate(part: AnyStreamPart, ctx: TranslateCtx): SSEEvent | nu
         case 'stop':
           return { event: 'step', data: { index: ctx.stepIndex, reason: 'final' } }
         case 'tool-calls':
+          if (ctx.maxSteps !== undefined && ctx.stepIndex >= ctx.maxSteps) {
+            return { event: 'step', data: { index: ctx.stepIndex, reason: 'capped' } }
+          }
           return { event: 'step', data: { index: ctx.stepIndex, reason: 'tool' } }
         case 'length':
           return {
