@@ -6,6 +6,9 @@ import { assertKnown } from './lib/pricing.ts'
 import { openDb, type DbHandle } from './db/client.ts'
 import { healthRoute } from './routes/health.ts'
 import { chatRoute } from './routes/chat.ts'
+import { conversationsRoute } from './routes/conversations.ts'
+import { messagesRoute } from './routes/messages.ts'
+import { usageRoute } from './routes/usage.ts'
 import { createTools } from './agent/tools/index.ts'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 
@@ -22,6 +25,9 @@ export function buildApp(deps: AppDeps) {
   const app = new Hono()
   app.route('/health', healthRoute(deps.db))
   app.route('/api/chat', chatRoute(deps))
+  app.route('/api/conversations', conversationsRoute(deps.db))
+  app.route('/api/messages', messagesRoute(deps.db))
+  app.route('/api/usage', usageRoute(deps.db))
   return app
 }
 
