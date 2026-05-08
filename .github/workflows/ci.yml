@@ -1,0 +1,103 @@
+# rx-assistant CI
+#
+# Two jobs, both gated on the test matrix passing:
+#
+#   1. test (matrix backend | frontend) — install + test + typecheck per
+#      package. fail-fast: true so a backend regression doesn't burn frontend
+#      runner minutes.
+#   2. compose — needs:test. Builds the full image stack, brings it up,
+#      polls the backend's /health until healthy, smokes the nginx-proxied
+#      /api/* path, then tears down with `--volumes`. Demonstrates the
+#      assignment's healthy-dependency rule end-to-end on a fresh runner.
+#
+# A real OPENROUTER_API_KEY isn't a CI secret (this is a take-home, not a
+# deployment). The compose job writes a stub key so the backend boots and
+# /health / /api/conversations both work. /api/chat would fail upstream
+# but is out of CI's scope.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: tests (${{ matrix.package }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        package: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3'
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.package }}
+        run: bun install --frozen-lockfile
+
+      - name: Tests
+        working-directory: ${{ matrix.package }}
+        run: bun run test
+
+      - name: Typecheck
+        working-directory: ${{ matrix.package }}
+        run: bun run typecheck
+
+  compose:
+    name: compose smoke
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write stub backend env
+        # Real OpenRouter key isn't a CI secret. Stub-key is enough for
+        # /health (DB ping) + /api/conversations (no upstream call). Don't
+        # exercise /api/chat in CI.
+        run: |
+          echo "OPENROUTER_API_KEY=ci-stub-not-a-real-key" > backend/.env
+
+      - name: Build + start stack
+        run: docker compose up -d --build
+
+      - name: Wait for backend /health
+        run: |
+          timeout 90 sh -c 'until curl -fs http://localhost:8787/health > /dev/null; do
+            echo "  backend not ready yet…"
+            sleep 2
+          done'
+          curl -s http://localhost:8787/health
+          echo
+
+      - name: Wait for frontend
+        run: |
+          timeout 60 sh -c 'until curl -fs http://localhost:5173/ > /dev/null; do
+            echo "  frontend not ready yet…"
+            sleep 2
+          done'
+          echo "Frontend up"
+
+      - name: Smoke — nginx proxy + JSON endpoints
+        run: |
+          set -e
+          # Direct backend
+          curl -fs http://localhost:8787/health | grep -q '"status":"ok"'
+          # Through nginx proxy
+          curl -fs http://localhost:5173/api/conversations
+          echo
+          echo "Smoke OK"
+
+      - name: Collect logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down --volumes
