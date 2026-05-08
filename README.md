@@ -9,6 +9,8 @@ Two tools are wired: `drug_info` (a small offline drug database) and `symptom_lo
 
 ---
 
+Screen Recording: https://drive.google.com/file/d/1jZVBkzuJ7G1gUk4J2gbBpzDc8PPK5H3N/view?usp=sharing
+
 ## Quick start
 
 You'll need [Bun ≥ 1.3](https://bun.sh) and an [OpenRouter API key](https://openrouter.ai/keys).
