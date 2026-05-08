@@ -31,7 +31,7 @@ jobs:
       matrix:
         package: [backend, frontend]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Write stub backend env
         # Real OpenRouter key isn't a CI secret. Stub-key is enough for
