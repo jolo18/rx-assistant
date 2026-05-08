@@ -1,0 +1,131 @@
+import { describe, expect, test, vi } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
+import { Composer, type ComposerPhase } from '../../src/components/Composer'
+
+function ControlledHarness({
+  initialValue = '',
+  phase = 'idle' as ComposerPhase,
+  onSubmit = () => {},
+}: {
+  initialValue?: string
+  phase?: ComposerPhase
+  onSubmit?: (text: string) => void
+}) {
+  const [value, setValue] = useState(initialValue)
+  return <Composer value={value} onChange={setValue} onSubmit={onSubmit} phase={phase} />
+}
+
+describe('Composer', () => {
+  test('renders the textarea with placeholder + the three action buttons', () => {
+    render(<ControlledHarness />)
+    expect(screen.getByPlaceholderText(/medication or a symptom/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /voice input/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /spoken replies/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^send$/i })).toBeInTheDocument()
+  })
+
+  test('typing into the textarea updates the controlled value', async () => {
+    const user = userEvent.setup()
+    render(<ControlledHarness />)
+    const ta = screen.getByPlaceholderText(/medication or a symptom/i) as HTMLTextAreaElement
+    await user.type(ta, 'hello world')
+    expect(ta.value).toBe('hello world')
+  })
+
+  test('Enter submits the current text', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<ControlledHarness initialValue="ibuprofen" onSubmit={onSubmit} />)
+    const ta = screen.getByPlaceholderText(/medication or a symptom/i)
+    ta.focus()
+    await user.keyboard('{Enter}')
+    expect(onSubmit).toHaveBeenCalledWith('ibuprofen')
+  })
+
+  test('Shift+Enter inserts a newline and does NOT submit', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<ControlledHarness initialValue="line1" onSubmit={onSubmit} />)
+    const ta = screen.getByPlaceholderText(/medication or a symptom/i) as HTMLTextAreaElement
+    ta.focus()
+    // Move caret to the end
+    ta.setSelectionRange(ta.value.length, ta.value.length)
+    await user.keyboard('{Shift>}{Enter}{/Shift}line2')
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(ta.value).toBe('line1\nline2')
+  })
+
+  test('Send button submits when clicked with non-empty text', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<ControlledHarness initialValue="ibuprofen" onSubmit={onSubmit} />)
+    await user.click(screen.getByRole('button', { name: /^send$/i }))
+    expect(onSubmit).toHaveBeenCalledWith('ibuprofen')
+  })
+
+  test('Send is disabled when value is empty', () => {
+    render(<ControlledHarness initialValue="" />)
+    expect(screen.getByRole('button', { name: /^send$/i })).toBeDisabled()
+  })
+
+  test('Send is disabled while phase is submitting and shows a spinner', () => {
+    render(<ControlledHarness initialValue="x" phase="submitting" />)
+    const send = screen.getByRole('button', { name: /sending/i })
+    expect(send).toBeDisabled()
+    expect(send.querySelector('.rx-composer__spin')).toBeInTheDocument()
+  })
+
+  test('Send is disabled while phase is streaming', () => {
+    render(<ControlledHarness initialValue="x" phase="streaming" />)
+    expect(screen.getByRole('button', { name: /sending/i })).toBeDisabled()
+  })
+
+  test('Enter is a no-op while phase is submitting', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<ControlledHarness initialValue="x" phase="submitting" onSubmit={onSubmit} />)
+    const ta = screen.getByPlaceholderText(/medication or a symptom/i)
+    ta.focus()
+    await user.keyboard('{Enter}')
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  test('Enter does not submit when value is empty', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<ControlledHarness initialValue="   " onSubmit={onSubmit} />)
+    const ta = screen.getByPlaceholderText(/medication or a symptom/i)
+    ta.focus()
+    await user.keyboard('{Enter}')
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  test('mic button is disabled with the phase-3 tooltip and clicking is a no-op', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<ControlledHarness initialValue="x" onSubmit={onSubmit} />)
+    const mic = screen.getByRole('button', { name: /voice input/i })
+    expect(mic).toBeDisabled()
+    expect(mic).toHaveAttribute('title', 'Voice input arrives in Phase 3')
+    await user.click(mic)
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  test('TTS button is disabled with the phase-3 tooltip and clicking is a no-op', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<ControlledHarness initialValue="x" onSubmit={onSubmit} />)
+    const tts = screen.getByRole('button', { name: /spoken replies/i })
+    expect(tts).toBeDisabled()
+    expect(tts).toHaveAttribute('title', 'Spoken replies arrive in Phase 3')
+    await user.click(tts)
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  test('renders the disclaimer copy', () => {
+    render(<ControlledHarness />)
+    expect(screen.getByText(/Informational only/i)).toBeInTheDocument()
+  })
+})
