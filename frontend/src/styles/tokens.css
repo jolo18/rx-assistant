@@ -1,0 +1,183 @@
+/* Rx Assistant — design tokens
+ * Source: §6 of the Phase 2 brief. Light is canonical; dark mirrors with
+ * preserved warmth (no pure blacks/whites anywhere).
+ */
+
+@import url("https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+
+:root,
+[data-theme="light"] {
+  /* ── color · surfaces */
+  --bg-canvas:          #EDE6D6;
+  --bg-surface:         #F4EFE2;
+  --bg-surface-raised:  #E4DBC4;
+  --bg-user-bubble:     #E8D9BE;
+
+  /* ── color · borders */
+  --border-subtle:      #D6CCB2;
+  --border-strong:      #B6A988;
+
+  /* ── color · text */
+  --text-primary:       #1C1B17;
+  --text-secondary:     #6E6655;
+  --text-disabled:      #A89F88;
+
+  /* ── color · accent */
+  --accent-primary:     #A8463E;
+  --accent-primary-hover: #8C3830;
+  --accent-streaming:   #A8463E;
+
+  /* ── color · tool / state pills (paired tints + strokes) */
+  --tool-pending-bg:    #DED5BE;
+  --tool-pending-fg:    #6E6655;
+  --tool-pending-bd:    #C9BE9F;
+
+  --tool-running-bg:    #D6DEE8;
+  --tool-running-fg:    #3F5775;
+  --tool-running-bd:    #A8B8CC;
+
+  --tool-success-bg:    #D9DFC4;
+  --tool-success-fg:    #4D5E36;
+  --tool-success-bd:    #A8B584;
+
+  --tool-warn-bg:       #ECDDB7;
+  --tool-warn-fg:       #6F4F18;
+  --tool-warn-bd:       #C9A85C;
+
+  --error-bg:           #E8D2C8;
+  --error-fg:           #7E2A26;
+  --error-bd:           #C77F75;
+
+  /* ── color · focus */
+  --focus-ring:         #A8463E;
+
+  /* ── radius */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-pill: 999px;
+
+  /* ── spacing */
+  --s-0: 0;
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+
+  /* ── motion */
+  --dur-fast:   120ms;
+  --dur-normal: 200ms;
+  --dur-slow:   320ms;
+  --ease-std:   cubic-bezier(0.2, 0, 0, 1);
+  --ease-emph:  cubic-bezier(0.3, 0, 0, 1);
+
+  /* ── elevation (border-first) */
+  --el-1: 1px solid var(--border-subtle);
+  --el-2: 1px solid var(--border-strong);
+  --el-2-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  --el-3-shadow: 0 8px 24px rgba(28,27,23,0.08);
+
+  /* ── type stacks */
+  --font-serif: "Source Serif 4", ui-serif, "Iowan Old Style", Charter, Georgia, serif;
+  --font-sans:  "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:  "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+
+[data-theme="dark"] {
+  --bg-canvas:          #1F1E1A;
+  --bg-surface:         #26241F;
+  --bg-surface-raised:  #2F2C26;
+  --bg-user-bubble:     #3B342A;
+
+  --border-subtle:      #36332B;
+  --border-strong:      #4D4839;
+
+  --text-primary:       #EAE3D2;
+  --text-secondary:     #9C947E;
+  --text-disabled:      #5E5749;
+
+  --accent-primary:     #C66457;
+  --accent-primary-hover: #D77367;
+  --accent-streaming:   #C66457;
+
+  --tool-pending-bg:    #2F2C26;
+  --tool-pending-fg:    #9C947E;
+  --tool-pending-bd:    #46412F;
+
+  --tool-running-bg:    #28323F;
+  --tool-running-fg:    #9DB3CF;
+  --tool-running-bd:    #3E5070;
+
+  --tool-success-bg:    #2D3525;
+  --tool-success-fg:    #B7C690;
+  --tool-success-bd:    #4D5E36;
+
+  --tool-warn-bg:       #3B2F19;
+  --tool-warn-fg:       #E0BE7A;
+  --tool-warn-bd:       #6F4F18;
+
+  --error-bg:           #3A201D;
+  --error-fg:           #E69388;
+  --error-bd:           #7E2A26;
+
+  --focus-ring:         #C66457;
+
+  --el-2-shadow: 0 1px 2px rgba(0,0,0,0.25);
+  --el-3-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+/* ─── element resets used inside artboards ─── */
+.rx-root {
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  background: var(--bg-canvas);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.005em;
+  font-feature-settings: "ss01", "cv01";
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.rx-root,
+.rx-root *,
+.rx-root *::before,
+.rx-root *::after {
+  box-sizing: border-box;
+}
+
+.rx-root button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.rx-root :focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
+/* ─── type ramp utility classes ─── */
+.t-display-lg { font-family: var(--font-serif); font-size: 40px; line-height: 48px; font-weight: 400; letter-spacing: -0.01em; }
+.t-display-md { font-family: var(--font-serif); font-size: 28px; line-height: 36px; font-weight: 400; letter-spacing: -0.01em; }
+.t-heading-lg { font-family: var(--font-serif); font-size: 22px; line-height: 30px; font-weight: 500; letter-spacing: -0.01em; }
+.t-heading-md { font-family: var(--font-serif); font-size: 19px; line-height: 28px; font-weight: 500; letter-spacing: -0.01em; }
+.t-heading-sm { font-family: var(--font-sans);  font-size: 16px; line-height: 24px; font-weight: 600; }
+.t-body-md    { font-family: var(--font-sans);  font-size: 15px; line-height: 24px; font-weight: 400; }
+.t-body-sm    { font-family: var(--font-sans);  font-size: 13.5px; line-height: 22px; font-weight: 400; color: var(--text-secondary); }
+.t-caption    { font-family: var(--font-sans);  font-size: 12px; line-height: 18px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.t-label      { font-family: var(--font-sans);  font-size: 13px; line-height: 18px; font-weight: 500; }
+.t-code-i     { font-family: var(--font-mono);  font-size: 13.5px; line-height: 22px; font-weight: 400; }
+.t-code-b     { font-family: var(--font-mono);  font-size: 13px;   line-height: 22px; font-weight: 400; }
