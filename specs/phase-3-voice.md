@@ -11,29 +11,27 @@
 Add **bidirectional voice** to the chat:
 
 - **Voice in** — user holds (or taps) the composer mic, speaks a question, sees the recognized transcript in the textarea, taps Send (or auto-submits).
-- **Voice out** — settled assistant responses can be played back as audio. A TTS toggle in the composer picks between text-only ("off") and "auto-play on settle" ("on"); each `<AudioPlayer>` next to a message also has a manual play / pause / scrub.
+- **Voice out** — settled assistant responses can be played back as audio. A TTS toggle in the composer picks between text-only ("off") and "auto-play on settle" ("on"); each `<AudioPlayer>` next to a message also has a manual play / pause control.
 
 End-of-phase ships when:
 
-1. `cd backend && bun test` — green, including the new `/api/tts` route tests.
+1. `cd backend && bun test` — green. Phase 3 ships **zero backend changes** (see §3.1), so the count stays at 170 / 170.
 2. `cd frontend && bun run test` — green, including STT hook tests + AudioPlayer tests + integration tests for the auto-play path.
 3. Live demo: speak a healthcare prompt → the textarea fills with the transcript → submit → the answer streams + auto-plays via `<AudioPlayer>`.
 4. Mic button shows a permission-denied state (per the design's S-5 screen) when the user blocks microphone access.
-5. Browser unsupported (e.g. Firefox without Web Speech) → mic stays `disabled` with copy "Voice input not supported in this browser." TTS still works (it doesn't depend on the browser API).
+5. Browser unsupported (Firefox without Web Speech, etc.) → mic stays `disabled` with copy "Voice input not supported in this browser." TTS likewise degrades gracefully.
 6. Recording-ready: a continuous narrated demo can show mic → answer → playback without fighting the UI.
 
 ---
 
-## 2. Provider choices (locked at slice 19)
+## 2. Provider choices (locked)
 
 | Concern | Pick | Why |
 | --- | --- | --- |
 | **STT** (speech → text) | Web Speech API (`SpeechRecognition` / `webkitSpeechRecognition`) | Browser-native, free, no network round-trip, works offline on most modern browsers. No backend dep. Fallback: feature-detection + `disabled-with-tooltip`. |
-| **TTS** (text → speech) | OpenAI TTS via the existing AI SDK pattern | Cheap (`tts-1` ≈ $15 / M chars), high quality, streaming-friendly. Wrap behind `backend/src/agent/tts.ts` and `frontend/src/lib/tts.ts` so swapping providers (ElevenLabs, Google, etc.) is a one-file change. Honors the `feedback_avoid_provider_lockin.md` rule. |
-| **Audio container** | `audio/mpeg` (mp3) | Universal browser support. Stream-friendly via `Response.body` chunks; the `<audio>` element happily plays a Blob URL. |
-| **Cache** | `Map<messageId, BlobURL>` in a Zustand-style store *or* a custom `useTts` hook | Avoid re-fetching the same response's audio. Eviction = page reload. |
-
-Confirmation question ([§3.0 below](#30-decisions-to-lock-at-slice-19-start)) — the implementer can override at slice 19 if a different STT/TTS approach is preferred.
+| **TTS** (text → speech) | **Web Speech Synthesis API** (`SpeechSynthesisUtterance`) | Browser-native, free, no API key, works offline using OS voices. **Symmetrical with STT** — one surface area, no backend route, no audio container, no storage decisions. Trade-off accepted: voice quality is OS-dependent (macOS/iOS voices are good; Windows/Linux defaults are rougher). |
+| **Storage** | None — frontend in-memory state only | `SpeechSynthesisUtterance` plays directly through the OS audio stack; no Blob is ever produced. The "cache" from earlier drafts dissolves into per-message playback state in `useTts`. Reload re-generates. |
+| **Backend** | Untouched | Phase 3 is **purely frontend**. No new routes, no new env vars, no schema changes. |
 
 ---
 
@@ -41,77 +39,31 @@ Confirmation question ([§3.0 below](#30-decisions-to-lock-at-slice-19-start)) �
 
 ### 3.0 Decisions to lock at slice 19 start
 
-Open a single bundled `AskUserQuestion` covering all four; default to the recommendations.
+Open a single bundled `AskUserQuestion` covering these three; default to the recommendations.
 
-1. **STT** — Web Speech API (browser-native) vs server-side Whisper. Recommend Web Speech.
-2. **TTS provider** — OpenAI TTS vs ElevenLabs vs Google. Recommend OpenAI.
+1. **STT** — Web Speech API (browser-native) vs server-side Whisper. Recommend Web Speech (already locked above).
+2. **TTS** — Web Speech Synthesis (browser-native) vs server-side (Piper / OpenAI). Recommend Web Speech Synthesis (already locked above).
 3. **Auto-play scope** — every settled response (TTS toggle on) vs manual-only. Recommend the toggle behavior the design already implies (`ttsOn` prop on `<Composer>`).
-4. **Audio container** — `audio/mpeg` vs `audio/opus` vs `audio/wav`. Recommend `audio/mpeg`.
 
 ### 3.1 Backend additions
 
-**One new route**: `POST /api/tts`.
-
-```ts
-// Request
-{
-  text: string,            // required, ≤ 4096 chars
-  voice?: string,          // optional, defaults to env OPENAI_TTS_VOICE
-  format?: 'mp3' | 'opus', // optional, defaults to mp3
-  // No conversationId — TTS is stateless. Caching lives in the frontend.
-}
-
-// Response
-//  Content-Type: audio/mpeg
-//  X-Request-Id: <ulid>     ← carry-over from Phase 1 logging convention
-//  Body: <audio bytes>
-```
-
-Errors follow the §3.4 envelope from the archived backend spec:
-
-| HTTP | `error.code` | When |
-| --- | --- | --- |
-| 400 | `INVALID_INPUT` | text empty / >4096 chars / unknown voice / unknown format |
-| 429 | `RATE_LIMITED` | upstream provider 429 (mirrors §3.4 reservation) |
-| 502 | `UPSTREAM_ERROR` | provider 5xx |
-| 504 | `UPSTREAM_TIMEOUT` | provider exceeded `TTS_TIMEOUT_MS` |
-| 500 | `INTERNAL` | anything else |
-
-**New env (added to `.env.example`):**
-
-```
-# REQUIRED for Phase 3 TTS
-OPENAI_API_KEY=
-OPENAI_TTS_MODEL=tts-1
-OPENAI_TTS_VOICE=alloy        # alloy | echo | fable | onyx | nova | shimmer
-TTS_TIMEOUT_MS=15000
-TTS_MAX_INPUT_CHARS=4096
-```
-
-**Files to add:**
-
-| Path | Purpose |
-| --- | --- |
-| `backend/src/agent/tts.ts` | provider facade — `synthesize({ text, voice, format })` returns `Response` body or `Buffer` |
-| `backend/src/routes/tts.ts` | Hono route mounted at `POST /api/tts` |
-| `backend/tests/routes/tts.test.ts` | per-error-code coverage + happy path with stubbed provider |
-| `backend/.env.example` | the new vars listed above |
+**None.** With Web Speech Synthesis on the client, there's no `/api/tts` route to add and no provider key to plumb. `backend/` stays at 170 / 170.
 
 ### 3.2 Frontend additions
 
 **New components:**
-- `frontend/src/components/AudioPlayer.tsx` — port from `design/project/components.jsx:393`. Two variants: `compact` (next to `<MessageFooter>`) and `full` (modal / detail). Controlled props: `playing`, `elapsed`, `total`, `onPlayPause`, `onSeek`. Phase 2 already styled `.rx-audio*` and `.rx-audio--compact|--full` in `components.css`.
+- `frontend/src/components/AudioPlayer.tsx` — port from `design/project/components.jsx:393`. Two variants: `compact` (next to `<MessageFooter>`) and `full` (modal / detail). Controlled props: `playing`, `paused`, `progress` (0..1), `onPlayPause`. Phase 2 already styled `.rx-audio*` and `.rx-audio--compact|--full` in `components.css`. **Limitation under Web Speech Synthesis**: `SpeechSynthesisUtterance` does not expose duration; we approximate progress via the `boundary` event's `charIndex` (progress ≈ `charIndex / text.length`). The full-variant scrub bar becomes a read-only progress indicator — no seek.
 
 **New hooks:**
 - `frontend/src/hooks/useSpeechRecognition.ts` — wraps `SpeechRecognition`. Returns `{ supported, recording, transcript, denied, start, stop, error }`. Mock-friendly for tests via `vi.spyOn(window, 'SpeechRecognition')`.
-- `frontend/src/hooks/useTts.ts` — given `{ messageId, text }` returns `{ status: 'idle' | 'fetching' | 'ready' | 'error', audioUrl?, error?, fetch() }`. Internal cache keyed by `messageId`. On unmount, `URL.revokeObjectURL` to free the Blob.
+- `frontend/src/hooks/useTts.ts` — wraps `window.speechSynthesis` + a per-message `SpeechSynthesisUtterance`. Returns `{ status, progress, play, pause, resume, stop }`. Single global "now-speaking" message — starting playback on a new message cancels the previous one. Internal: a tiny module-level singleton tracks the active utterance so multiple components (the `compact` AudioPlayer next to a turn + a hypothetical `full` variant later) stay in sync.
 
 **New lib:**
-- `frontend/src/lib/tts.ts` — `fetchTts(text, opts?): Promise<Blob>`. Wraps `fetch('/api/tts', …)` with the same `ApiError` envelope handling as `lib/api.ts`. Thin facade — provider-neutral on the frontend side.
+- `frontend/src/lib/tts.ts` — thin facade around `speechSynthesis`. Exposes `speak(text, opts?)`, `cancel()`, `pause()`, `resume()`, plus a `getVoice(prefs?)` helper that picks a sensible default voice from `speechSynthesis.getVoices()`. Provider-neutral on intent (per `feedback_avoid_provider_lockin`) — if a future phase swaps to a server route this is the only file the consumer touches.
 
 **Component changes (Phase 2 surfaces — minimal edits):**
-- `frontend/src/components/Composer.tsx` — drop `disabled` from mic + TTS; wire to `useSpeechRecognition` + a new `ttsOn` controlled prop. Recording / denied states already designed in `components.jsx:313-389`.
-- `frontend/src/components/AssistantMessage.tsx` — when `ttsOn` and `phase === 'done'`, mount `<AudioPlayer>` next to `<MessageFooter>`. The player auto-plays when `useTts` resolves.
+- `frontend/src/components/Composer.tsx` — drop `disabled` from mic + TTS; wire mic to `useSpeechRecognition`; wire TTS toggle to a new `ttsOn` controlled prop. Recording / denied states already designed in `components.jsx:313-389`.
+- `frontend/src/components/AssistantMessage.tsx` — when `ttsOn` and `phase === 'done'`, mount `<AudioPlayer compact />` next to `<MessageFooter>`. The player auto-plays via `useTts.play()` once mounted.
 
 ### 3.3 Frontend state machine — `useSpeechRecognition`
 
@@ -135,20 +87,29 @@ type SpeechRecognitionState =
 ```ts
 type TtsState =
   | { status: 'idle' }
-  | { status: 'fetching' }
-  | { status: 'ready'; audioUrl: string }     // Blob URL, revoked on unmount
+  | { status: 'unsupported' }                  // window.speechSynthesis missing
+  | { status: 'speaking'; charIndex: number }  // updated via the boundary event
+  | { status: 'paused';   charIndex: number }
   | { status: 'error'; code: ErrorCode; message: string }
 ```
 
-Cache strategy: a module-level `Map<messageId, Promise<Blob>>` so two consumers asking for the same message's audio share one fetch. Cache survives route changes within the SPA but resets on full reload.
+**Transitions:**
+- `idle → speaking` on `play(text)`. Internally constructs a `SpeechSynthesisUtterance(text)`, attaches `onboundary` (advances `charIndex`), `onend` (→ `idle`), `onerror` (→ `error`), then calls `speechSynthesis.speak(utt)`. If `speechSynthesis.speaking` is true on entry, calls `cancel()` first so the global "now-speaking" invariant holds (one utterance at a time).
+- `speaking → paused` on `pause()` → `speechSynthesis.pause()`.
+- `paused → speaking` on `resume()` → `speechSynthesis.resume()`.
+- `* → idle` on `stop()` → `speechSynthesis.cancel()`.
+- `* → unsupported` if `typeof speechSynthesis === 'undefined'` at hook init.
+- `* → error` on `utt.onerror`. The `event.error` string maps to a UI ErrorCode (e.g. `synthesis-failed` → `INTERNAL`, `language-unavailable` → `INVALID_INPUT`, `audio-busy` → `NETWORK_ERROR` semantics-wise).
+
+`progress` (0..1) is computed live as `charIndex / text.length`. Web Speech Synthesis does not expose a true duration, so the AudioPlayer's progress bar is approximate — accurate on word boundaries, not character-by-character.
 
 ### 3.5 TTS auto-play UX
 
 - Composer's TTS toggle (`ttsOn`) is persisted in localStorage — same pattern as `useTheme`.
 - When `phase === 'done'` arrives for a turn AND `ttsOn` is true:
-  - `useTts.fetch()` fires for the assistant's full text.
-  - Once `status === 'ready'`, the `<AudioPlayer compact playing />` mounts and starts playback.
-- A historical-only path (toggling TTS on while viewing a `/c/:id` page) lazy-fetches per assistant message on demand — manual play button click.
+  - The `<AudioPlayer compact />` mounts inside `<AssistantMessage>` and immediately calls `useTts.play(assistant.text)`.
+  - Subsequent settled turns cancel any in-flight playback before starting (single-utterance invariant in §3.4).
+- A historical-only path (toggling TTS on while viewing a `/c/:id` page) lazy-plays per assistant message on demand — manual play button click only; no auto-play retroactively.
 
 ### 3.6 Wiring layers (delta from Phase 2 §3.3)
 
@@ -162,29 +123,21 @@ Cache strategy: a module-level `Map<messageId, Promise<Blob>>` so two consumers 
 │   ├─▶ AssistantMessage                                              │
 │   │     ├─▶ ReasoningPanel / ToolCalls / AnswerBody / MessageFooter  │
 │   │     └─▶ AudioPlayer (when ttsOn && phase=done)                   │
-│   │           └─▶ useTts(messageId, text)                            │
-│   │                  └─▶ POST /api/tts → Blob URL                    │
+│   │           └─▶ useTts(text)                                       │
+│   │                  └─▶ speechSynthesis.speak(utterance)            │
 │   └─▶ …                                                              │
 └──────────────────────────────────────────────────────────────────────┘
 ```
+
+No network arrow on the TTS path — the browser plays through the OS audio stack directly.
 
 ---
 
 ## 4. Slice plan (TDD-driven, per the project pause-for-review discipline)
 
-Slice numbering continues from Phase 2 (slice 18). Each slice ends with **green tests + commit + pause for user review**.
+Slice numbering continues from Phase 2 (slice 18). **Four slices** (the original draft's slice 19 backend route is gone). Each slice ends with **green tests + commit + pause for user review**.
 
-### Slice 19 — Backend `/api/tts` (provider facade + Hono route)
-
-**Tests first** —
-- `backend/tests/routes/tts.test.ts`: happy path (stubbed provider returns audio Buffer, response is `audio/mpeg`); INVALID_INPUT for empty / 4097-char / unknown voice; UPSTREAM_TIMEOUT (provider hangs, `TTS_TIMEOUT_MS=50`); UPSTREAM_ERROR (provider 500); RATE_LIMITED (provider 429).
-- `backend/tests/agent/tts.test.ts`: facade unit tests — env-driven voice / model defaults; format param.
-
-**Impl** — `backend/src/agent/tts.ts`, `backend/src/routes/tts.ts`, mount in `src/index.ts`. Add env vars to `lib/env.ts` + `.env.example`. Wire pino logging at the same layer pattern (`http | service | tool`).
-
-**DoD** — `bun test` green; `curl -X POST http://localhost:8787/api/tts -H 'content-type: application/json' -d '{"text":"hello"}' --output hello.mp3` produces a playable audio file.
-
-### Slice 20 — `useSpeechRecognition` + Composer mic wiring
+### Slice 19 — `useSpeechRecognition` + Composer mic wiring
 
 **Tests first** — `tests/hooks/useSpeechRecognition.test.ts`: happy path (start → recording → result event → idle with transcript); permission denied; unsupported (delete the global before mount); error event; concurrent start() is a no-op. Mocks `window.SpeechRecognition` via Vitest spies. Plus `tests/components/Composer.recording.test.tsx`: clicking mic toggles state and forwards transcripts via `onTranscript`.
 
@@ -192,29 +145,29 @@ Slice numbering continues from Phase 2 (slice 18). Each slice ends with **green 
 
 **DoD** — Live: tapping mic in Chrome on macOS captures speech, fills the textarea. Denied: blocking permission shows the design's banner copy "Microphone permission denied. Enable mic access in browser settings."
 
-### Slice 21 — `<AudioPlayer>` port + `useTts` hook
+### Slice 20 — `<AudioPlayer>` port + `useTts` hook (Web Speech Synthesis)
 
-**Tests first** — `tests/components/AudioPlayer.test.tsx`: compact + full variants render the play/pause control, time labels, scrub bar; `playing=false` swaps the icon; `elapsed/total` updates fill width. `tests/hooks/useTts.test.ts`: cache hit dedupes a second fetch; ApiError surfaces in state.code / state.message; URL.revokeObjectURL fires on unmount.
+**Tests first** — `tests/components/AudioPlayer.test.tsx`: compact + full variants render the play/pause control and progress indicator; `playing=false` swaps the icon; `progress` updates fill width; the full variant's scrub bar is read-only (no `onSeek` exposed). `tests/hooks/useTts.test.ts`: state transitions per §3.4 with a stubbed `window.speechSynthesis`; unsupported path; calling `play()` twice cancels the first utterance; pause / resume / stop semantics; boundary event advances charIndex.
 
-**Impl** — `src/components/AudioPlayer.tsx` ported from the design (lines 393-422 of `design/project/components.jsx`); `src/hooks/useTts.ts`; `src/lib/tts.ts`. No JSX changes to `<AssistantMessage>` yet — that's slice 22.
+**Impl** — `src/components/AudioPlayer.tsx` ported from the design (lines 393-422 of `design/project/components.jsx`); `src/hooks/useTts.ts`; `src/lib/tts.ts` facade. No JSX changes to `<AssistantMessage>` yet — that's slice 21. Add `<AudioPlayer>` to the dev gallery's component list so all states are visible.
 
-**DoD** — `<AudioPlayer>` renders at all states in the dev gallery (`/__components`). `useTts` round-trips against an MSW-mocked `/api/tts` returning a fake Blob.
+**DoD** — `<AudioPlayer>` renders at all states in `/__components`. `useTts` round-trips against a Vitest-stubbed `speechSynthesis`. Manually clicking play in the gallery actually speaks the text via the browser's TTS engine.
 
-### Slice 22 — TTS toggle in Composer + auto-play on settle
+### Slice 21 — TTS toggle in Composer + auto-play on settle
 
-**Tests first** — `tests/integration/tts-autoplay.test.tsx`: with `ttsOn` true, completing a stream triggers a `POST /api/tts` (MSW) and mounts `<AudioPlayer compact />` next to the assistant footer; with `ttsOn` false, no fetch fires. `tests/hooks/useTts.persistence.test.ts`: TTS toggle persists in localStorage.
+**Tests first** — `tests/integration/tts-autoplay.test.tsx`: with `ttsOn` true, completing a stream mounts `<AudioPlayer compact />` next to the assistant footer and calls `speechSynthesis.speak`; with `ttsOn` false, no utterance fires. `tests/hooks/useTtsPreference.test.ts`: TTS toggle persists in localStorage. `tests/components/Composer.tts-toggle.test.tsx`: clicking the TTS button flips `ttsOn` and forwards the change.
 
-**Impl** — `<Composer>` exposes `ttsOn` as a controlled prop (lift state to `ChatPage`); persists via a tiny `useTtsPreference` hook; `<AssistantMessage>` mounts `<AudioPlayer>` + `useTts` when `phase === 'done'` AND `ttsOn` is true.
+**Impl** — `<Composer>` exposes `ttsOn` as a controlled prop (lift state to `ChatPage`); persists via a tiny `useTtsPreference` hook; `<AssistantMessage>` mounts `<AudioPlayer>` + `useTts` when `phase === 'done'` AND `ttsOn` is true. Single-utterance invariant in §3.4 means a new turn auto-cancels the previous turn's playback.
 
-**DoD** — Live: toggle TTS on in the composer, send a healthcare prompt, the answer streams, then the AudioPlayer appears and starts playing automatically. Toggling off mid-playback stops the audio.
+**DoD** — Live: toggle TTS on in the composer, send a healthcare prompt, the answer streams, then the AudioPlayer appears and starts playing automatically. Toggling off mid-playback stops the audio. Sending another prompt cancels the in-flight playback before the new one auto-plays.
 
-### Slice 23 — Polish + Phase 3 closure
+### Slice 22 — Polish + Phase 3 closure
 
-**Tests first** — Mobile breakpoint sanity (Composer mic button stays tappable with 44×44 minimum). Reduced-motion: AudioPlayer's progress bar doesn't animate when `prefers-reduced-motion`. Tab-trap: mic + TTS now reachable via keyboard.
+**Tests first** — Mobile breakpoint sanity (Composer mic button stays tappable with 44×44 minimum). Reduced-motion: AudioPlayer's progress bar doesn't animate when `prefers-reduced-motion`. Tab-trap: mic + TTS now reachable via keyboard. Browser-quirk smoke: macOS Safari requires explicit user gesture before `speechSynthesis.speak` works the *first* time per page.
 
-**Impl** — README updates (demo script extended with the voice steps); a final eyeball on Safari (Web Speech API has Safari-specific quirks: `interimResults` events fire less often, requires explicit user gesture to start). Update CLAUDE.md to mark Phase 3 closed and pivot to Phase 4 (Docker + CI).
+**Impl** — README updates (demo script extended with the voice steps). Live eyeball pass on Safari (Web Speech API has Safari-specific quirks) and at least one Firefox check (where TTS works but STT may not, exercising the "unsupported" path). Update CLAUDE.md to mark Phase 3 closed and pivot to Phase 4 (Docker + CI).
 
-**DoD** — Recording-ready continuous demo from blank state → text chat → voice in → voice out, no UI fights.
+**DoD** — Recording-ready continuous demo from blank state → text chat → voice in → voice out, no UI fights. All Phase 3 acceptance items in §1 above tick green.
 
 ---
 
@@ -223,13 +176,14 @@ Slice numbering continues from Phase 2 (slice 18). Each slice ends with **green 
 | ID | Trigger | Symptom | Mitigation |
 | --- | --- | --- | --- |
 | V-F-1 | User denies mic permission | Browser fires `error.error === 'not-allowed'` | `<Composer>` shows the design's S-5 banner ("Microphone permission denied…"), mic icon switches to `Lock`, button stays disabled until user re-grants. |
-| V-F-2 | Browser doesn't expose Web Speech (e.g. Firefox without flag) | Mic button must not throw on click | Hook's `phase: 'unsupported'` state — mic stays `disabled` with `title="Voice input not supported in this browser"`. |
-| V-F-3 | Network drops mid-recognition | `error.error === 'network'` | Toast + return to `idle`; partial transcript discarded. |
-| V-F-4 | TTS request 4xx/5xx | `ApiError` surfaces in `useTts.state.code` | `<AudioPlayer>` shows an inline error pill; manual retry via play-button click. |
-| V-F-5 | TTS audio fails to play (codec issue) | `<audio>` element fires `error` event | Toast "Couldn't play audio in this browser"; fall back to text-only render. |
-| V-F-6 | Long assistant message exceeds `TTS_MAX_INPUT_CHARS` (4096) | Backend returns 400 INVALID_INPUT | Frontend chunks the text or shows a polite "This response is too long for spoken playback" pill. |
-| V-F-7 | User toggles TTS off mid-fetch | Fetch must abort cleanly | `useTts.fetch()` honors an AbortController stored in state; cleanup on toggle-off. |
-| V-F-8 | Two messages auto-play at the same time | Audio overlap | A simple "current player" selector in the Zustand store (or context) — only one `<AudioPlayer>` is `playing` at a time; auto-play of a new turn pauses the previous. |
+| V-F-2 | Browser doesn't expose Web Speech (Firefox without flag, older Safari) | Mic button must not throw on click | Hook's `phase: 'unsupported'` state — mic stays `disabled` with `title="Voice input not supported in this browser"`. |
+| V-F-3 | Browser doesn't expose `speechSynthesis` (rare; some headless / minimal browsers) | TTS toggle must not throw | Hook's `status: 'unsupported'` state — TTS button stays `disabled` with `title="Spoken replies not supported in this browser"`. |
+| V-F-4 | OS has no installed TTS voices | `getVoices()` returns `[]`; `speak()` is a silent no-op | Detect at first `play()` call — if `getVoices()` is empty after the `voiceschanged` event fires, set `status: 'error'` with code `INVALID_INPUT` and copy "No system voices available." |
+| V-F-5 | Long assistant message (~5000+ chars) | Some browsers truncate; Chrome has a known ~15s utterance cut-off bug | Chunk the text into ~500-char paragraphs and queue them sequentially via `onend → speak(next)`. Documented in `useTts`. |
+| V-F-6 | User toggles TTS off mid-utterance | Must abort cleanly | `useTts.stop()` → `speechSynthesis.cancel()`. |
+| V-F-7 | Two assistant turns settle in quick succession | Audio overlap | Single-utterance invariant in §3.4 — a fresh `play()` calls `cancel()` first. |
+| V-F-8 | iOS Safari first-load: TTS won't fire without user gesture | Auto-play on settle silently fails | First TTS call requires the user to have interacted with the page (clicking the TTS toggle counts). Documented in the README; not worked around in code. |
+| V-F-9 | Network / STT error events | `error.error === 'network' \| 'aborted' \| 'no-speech'` | Toast + return to `idle`; partial transcript discarded. |
 
 ---
 
@@ -238,9 +192,11 @@ Slice numbering continues from Phase 2 (slice 18). Each slice ends with **green 
 - **Wake-word / "Hey Rx" hotword** — manual mic press only.
 - **Multi-language STT/TTS** — `lang="en-US"` for both. Cross-locale support deferred.
 - **Voice-only mode** (no textarea visible) — keyboard input remains primary; voice is additive.
-- **Voice cloning / custom voices** — use the provider's stock voice list.
-- **Saving the audio blob to the backend** — TTS is regenerated on demand from text. Backend stays voice-state-free; only the new `/api/tts` route changes.
-- **Resuming TTS playback across reloads** — Blob URLs are page-scoped; reload re-fetches if the user replays.
+- **Voice cloning / custom voices** — use whatever voices the OS exposes via `speechSynthesis.getVoices()`.
+- **Backend persistence of synthesized audio** — Web Speech Synthesis doesn't expose a Blob; nothing to store. Per-reload re-generation is accepted (it's instant on the client anyway).
+- **Voice consistency across devices** — accepted limitation. macOS / iOS voices are excellent; Linux / Windows defaults are rougher. Demo should be recorded on macOS for the cleanest sound.
+- **Resuming TTS playback across reloads** — utterance state is page-scoped; reload starts from idle.
+- **Server-side TTS fallback** — if the browser can't synthesize, the user sees a graceful error pill rather than a server round-trip.
 - **Phase 4** — Docker compose + CI. Separate spec.
 
 ---
@@ -249,13 +205,13 @@ Slice numbering continues from Phase 2 (slice 18). Each slice ends with **green 
 
 | Axis | Decision | Locked at |
 | --- | --- | --- |
-| STT | Web Speech API (browser-native) | Slice 19 `AskUserQuestion` |
-| TTS provider | OpenAI TTS via thin facade | Slice 19 `AskUserQuestion` |
-| Audio format | `audio/mpeg` | Slice 19 `AskUserQuestion` |
-| Auto-play | `ttsOn` toggle in composer; persists in localStorage | Slice 22 |
-| Concurrency | Single global "now playing" — new auto-play pauses prior | Slice 22 |
-| Cache | Module-level `Map<messageId, Promise<Blob>>`; cleared on full reload | Slice 21 |
-| Backend route | `POST /api/tts` returning `audio/mpeg`; `text/plain` errors via the existing `{error: {code, message}}` envelope | Slice 19 |
-| Failure-mode envelope | Mirrors backend §3.4 codes; UI extends with `STT_DENIED`, `STT_UNSUPPORTED`, `STT_NETWORK` | §5 above |
+| STT | Web Speech API (browser-native) | Phase 3 spec entry |
+| TTS | Web Speech Synthesis API (browser-native) | Phase 3 spec entry — symmetric with STT, no infra |
+| Storage | None — in-memory state per message; reload re-generates | Phase 3 spec entry |
+| Backend | No Phase 3 changes | Phase 3 spec entry |
+| Auto-play | `ttsOn` toggle in composer; persists in localStorage | Slice 21 |
+| Concurrency | Single global "now speaking" — new utterance cancels prior | Slice 20 |
+| AudioPlayer scrub | Read-only progress (no seek) — Web Speech Synthesis doesn't expose duration | Slice 20 |
+| Failure-mode envelope | Mirrors backend §3.4 codes; UI extends with `STT_DENIED`, `STT_UNSUPPORTED`, `TTS_UNSUPPORTED`, `TTS_NO_VOICES`, `STT_NETWORK` | §5 above |
 
-Phase 3 closes when all DoDs above are green and the recording can flow uninterrupted from voice-in through voice-out without manual fallbacks.
+Phase 3 closes when all DoDs above are green and the recording flows uninterrupted from voice-in through voice-out without manual fallbacks.

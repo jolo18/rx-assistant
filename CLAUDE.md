@@ -47,8 +47,9 @@ cd frontend && bun run typecheck
 ### Phase 3 (to build)
 
 - **STT** — Web Speech API (`SpeechRecognition`) for in-browser dictation. Free, no backend dep. Fallback / denied state already designed in `<Composer>`.
-- **TTS** — backend `/api/tts` endpoint that proxies to a TTS provider (OpenAI TTS via the AI SDK or direct fetch). Frontend `<AudioPlayer>` (already in design source, currently unmounted) plays the returned audio blob.
-- **Provider-neutral** per `feedback_avoid_provider_lockin.md` — wrap TTS calls behind a thin `frontend/src/lib/tts.ts` so swapping providers is a one-file change.
+- **TTS** — Web Speech Synthesis API (`SpeechSynthesisUtterance`) — symmetric with STT, also browser-native, also free, also no backend. The original draft's `/api/tts` route is **dropped**; backend ships zero changes in Phase 3.
+- **Frontend-only voice surface** — `frontend/src/lib/tts.ts` is a thin facade around `speechSynthesis`; `frontend/src/hooks/useTts.ts` owns the per-message playback state machine. Provider-neutral interface so a future phase could swap to a server route in one file.
+- **Storage** — none. `SpeechSynthesisUtterance` plays directly through the OS audio stack; nothing is ever cached or persisted.
 
 ## TDD discipline
 
@@ -97,9 +98,9 @@ Do not jump ahead. The Phase 2 ornamental decisions (live-only `<CappedNotice>` 
 
 - Phase 1 + Phase 2 stay untouched unless Phase 3 surfaces a missing wire field. If that happens, amend the spec before changing code.
 - **Voice components in Phase 2** render `disabled` with hover tooltips. Phase 3 lifts the `disabled` and wires the runtimes — no other refactors required.
-- The `/api/tts` endpoint is the only new backend route. Use existing `streamSSE` helper if streaming audio chunks; otherwise return a single audio blob with `Content-Type: audio/mpeg`.
-- React UI consumes any new endpoints via `frontend/src/lib/api.ts` wrappers (matches Phase 2 pattern).
-- Web Speech API is browser-only. Tests mock `window.SpeechRecognition` / `webkitSpeechRecognition`. Real-device verification (Safari + Chrome on macOS, mobile Safari) is required before slice closure.
+- **Phase 3 ships zero backend changes.** All voice work is in `frontend/`. Mic uses `SpeechRecognition`, TTS uses `SpeechSynthesisUtterance`. Backend stays at 170 / 170 unless an unrelated bug surfaces.
+- Web Speech APIs are browser-only. Tests mock `window.SpeechRecognition` / `webkitSpeechRecognition` / `window.speechSynthesis`. Real-device verification (Safari + Chrome on macOS, mobile Safari) is required before slice closure — TTS quality varies by OS voices and iOS Safari requires a user gesture for the first `speak()` call.
+- AudioPlayer scrub is read-only — `SpeechSynthesisUtterance` doesn't expose duration. Progress is approximated via the `boundary` event's `charIndex / text.length`.
 
 ## Adding work
 
