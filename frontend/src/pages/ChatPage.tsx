@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Composer } from '../components/Composer'
-import { FirstTokenIndicator } from '../components/FirstTokenIndicator'
+import { MessageList } from '../components/MessageList'
 import { MobileTop } from '../components/MobileTop'
 import { Sidebar } from '../components/Sidebar'
-import { UserMessage } from '../components/UserMessage'
-import { useChatStream } from '../hooks/useChatStream'
+import { useChatStreamContext } from '../hooks/chatStreamContext'
 import { useConversations } from '../hooks/useConversations'
 
 const MOBILE_QUERY = '(max-width: 720px)'
@@ -19,17 +18,24 @@ export function ChatPage() {
   const { id: routeConversationId } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { conversations, loading, error, deleteConversation } = useConversations()
-  const chat = useChatStream({ conversationId: routeConversationId })
+  const chat = useChatStreamContext()
 
   const [draft, setDraft] = useState('')
   const [pendingUser, setPendingUser] = useState<{ id: string; text: string } | null>(null)
-  // sidebar collapsed semantics:
-  //   desktop  → 56px icon strip
-  //   mobile   → fully hidden (MobileTop is the entry point)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => isMobileViewport())
 
-  // Re-collapse the sidebar whenever the viewport flips into mobile width so
-  // the overlay sheet doesn't hang around after a resize.
+  // Mid-stream route push: as soon as `start.conversationId` arrives on a
+  // brand-new conversation, swap the URL so the page is shareable. The
+  // ChatStreamProvider sits above <Routes>, so this navigate doesn't
+  // unmount us or clobber the in-flight stream.
+  useEffect(() => {
+    if (chat.state.phase !== 'streaming' && chat.state.phase !== 'done') return
+    const incoming = chat.state.assistant.conversationId
+    if (incoming && incoming !== routeConversationId) {
+      navigate(`/c/${incoming}`, { replace: true })
+    }
+  }, [chat.state, routeConversationId, navigate])
+
   useEffect(() => {
     const mql = window.matchMedia(MOBILE_QUERY)
     const onChange = (e: MediaQueryListEvent) => {
@@ -45,9 +51,10 @@ export function ChatPage() {
     setDraft('')
   }
 
-  const showFirstToken =
-    chat.state.phase === 'submitting' ||
-    (chat.state.phase === 'streaming' && chat.state.assistant.text === '')
+  function handleRetry() {
+    if (!pendingUser) return
+    chat.send(pendingUser.text)
+  }
 
   return (
     <div className="rx-shell" style={{ display: 'flex', minHeight: '100vh' }}>
@@ -94,9 +101,7 @@ export function ChatPage() {
             width: '100%',
           }}
         >
-          {pendingUser && <UserMessage text={pendingUser.text} />}
-          {showFirstToken && <FirstTokenIndicator />}
-          {/* Slice 15 fills the assistant rendering here. */}
+          <MessageList state={chat.state} pendingUser={pendingUser} onRetry={handleRetry} />
         </div>
         <div style={{ padding: '0 32px 32px', maxWidth: 760, margin: '0 auto', width: '100%' }}>
           <Composer
