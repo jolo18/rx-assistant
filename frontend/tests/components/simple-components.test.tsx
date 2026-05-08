@@ -50,12 +50,12 @@ describe('UserMessage', () => {
     expect(screen.getByText('14:31')).toBeInTheDocument()
   })
 
-  test('fires onMore when the more button is clicked', async () => {
+  test('clicking the three-dot opens the menu', async () => {
     const user = userEvent.setup()
-    const onMore = vi.fn()
-    render(<UserMessage text="x" onMore={onMore} />)
+    render(<UserMessage text="x" onDeleteTurn={() => {}} />)
+    expect(screen.queryByRole('menu')).toBeNull()
     await user.click(screen.getByRole('button', { name: /more actions/i }))
-    expect(onMore).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('menu')).toBeInTheDocument()
   })
 })
 

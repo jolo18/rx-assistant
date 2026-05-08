@@ -31,11 +31,6 @@ type AssistantMessageProps = {
   errorMessage?: string
   onRetry?: () => void
   /**
-   * Fired when the user confirms deletion of this turn. Backend deletes the
-   * turn's user-message id which cascades through the rest of the turn.
-   */
-  onDeleteTurn?: () => void | Promise<void>
-  /**
    * When true and `phase === 'done'`, mount <AudioPlayer> next to the footer
    * and auto-play the assistant text via Web Speech Synthesis.
    */
@@ -56,12 +51,16 @@ export function AssistantMessage({
   errorCode,
   errorMessage,
   onRetry,
-  onDeleteTurn,
   ttsOn = false,
   ttsAutoPlay = true,
 }: AssistantMessageProps) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const [confirming, setConfirming] = useState(false)
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const t = setTimeout(() => setCopied(false), 1200)
+    return () => clearTimeout(t)
+  }, [copied])
   // null = follow the auto-state (expanded while streaming, collapsed once
   // settled). true/false = user has explicitly toggled.
   const [reasoningOverride, setReasoningOverride] = useState<boolean | null>(null)
@@ -173,17 +172,17 @@ export function AssistantMessage({
             }
             cost={assistant.metadata.costUsd}
             showMenu={menuOpen}
-            confirmingDelete={confirming}
+            copied={copied}
             onMore={() => setMenuOpen((o) => !o)}
             onCloseMenu={() => setMenuOpen(false)}
-            onDelete={() => {
+            onCopy={async () => {
               setMenuOpen(false)
-              setConfirming(true)
-            }}
-            onCancelDelete={() => setConfirming(false)}
-            onConfirmDelete={async () => {
-              setConfirming(false)
-              await onDeleteTurn?.()
+              try {
+                await navigator.clipboard.writeText(assistant.text)
+                setCopied(true)
+              } catch {
+                // Clipboard API unavailable / permission denied — silent no-op.
+              }
             }}
           />
         )}

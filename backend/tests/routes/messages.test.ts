@@ -72,9 +72,10 @@ describe('Message routes (Step 0.6 §3 DELETE policy)', () => {
     h.close()
   })
 
-  test('DELETE /api/messages/:id on a user message cascades the turn + renumbers (I-6)', async () => {
+  test('DELETE /api/messages/:id on a user message cascades from that turn through end of conversation (I-6)', async () => {
     const ids = seedMultiTurn(h)
-    // Deleting u1 should remove u1, a1, t1, a2 — leaving u2, a3 renumbered to 0, 1.
+    // Deleting u1 should remove every message at position >= u1.position —
+    // i.e. u1, a1, t1, a2, u2, a3 — leaving the conversation empty.
     const res = await h.app.request(`/api/messages/${ids.u1}`, { method: 'DELETE' })
     expect(res.status).toBe(204)
 
@@ -84,9 +85,24 @@ describe('Message routes (Step 0.6 §3 DELETE policy)', () => {
       )
       .all(ids.conversationId)
 
-    expect(remaining.map((r) => r.id)).toEqual([ids.u2, ids.a3])
-    expect(remaining.map((r) => r.position)).toEqual([0, 1])
-    expect(remaining.map((r) => r.role)).toEqual(['user', 'assistant'])
+    expect(remaining).toEqual([])
+  })
+
+  test('DELETE /api/messages/:id on a middle user message keeps earlier turns untouched (no renumber)', async () => {
+    const ids = seedMultiTurn(h)
+    // Deleting u2 should keep u1, a1, t1, a2 (positions 0..3, unchanged) and
+    // remove u2, a3.
+    const res = await h.app.request(`/api/messages/${ids.u2}`, { method: 'DELETE' })
+    expect(res.status).toBe(204)
+
+    const remaining = h.db.sqlite
+      .query<{ id: string; role: string; position: number }, [string]>(
+        'SELECT id, role, position FROM messages WHERE conversation_id = ? ORDER BY position',
+      )
+      .all(ids.conversationId)
+
+    expect(remaining.map((r) => r.id)).toEqual([ids.u1, ids.a1, ids.t1, ids.a2])
+    expect(remaining.map((r) => r.position)).toEqual([0, 1, 2, 3])
   })
 
   test('Post-delete conversation round-trips through storedToModelMessages with no orphan tool_use (NFR-8)', async () => {

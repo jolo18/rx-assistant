@@ -407,6 +407,16 @@
   color: var(--text-primary);
 }
 
+/* Anchor for the user-message dropdown / confirm popups. Mirrors
+ * .rx-mfooter__menuanchor but without margin-left:auto — the user footer
+ * already flows right-to-left naturally. */
+.rx-msg__menuanchor {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  flex: 0 0 auto;
+}
+
 /* ╭─────────────────────── Assistant message ─────────────────╮ */
 
 .rx-amsg {

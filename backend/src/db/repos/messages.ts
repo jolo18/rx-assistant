@@ -155,9 +155,10 @@ export function makeMessagesRepo(db: DB, opts: RepoOpts = {}) {
     },
 
     /**
-     * Step 0.6 §3 — DELETE /api/messages/:id only accepts user-message ids
-     * and cascades through the rest of the turn (everything up to the next
-     * user message, or end of conversation).
+     * DELETE /api/messages/:id only accepts user-message ids and cascades
+     * from that turn through the end of the conversation — every row at
+     * `position >= target.position` is dropped. No renumbering is needed
+     * because we always cut the tail (no gaps left behind).
      */
     deleteUserTurn(userMessageId: string): void {
       const t0 = performance.now()
@@ -183,70 +184,15 @@ export function makeMessagesRepo(db: DB, opts: RepoOpts = {}) {
         )
       }
 
-      // Find the next user message in the same conversation (if any).
-      const nextUser = db
-        .select({ position: messages.position })
-        .from(messages)
-        .where(
-          and(
-            eq(messages.conversationId, target.conversationId),
-            eq(messages.role, 'user'),
-            gt(messages.position, target.position),
-          ),
-        )
-        .orderBy(asc(messages.position))
-        .limit(1)
-        .get()
-
-      const upperBound = nextUser?.position ?? null
-      const turnLength =
-        upperBound === null ? Infinity : upperBound - target.position
-
       db.transaction((tx) => {
-        // 1) Delete the entire turn slice [target.position, upperBound).
-        if (upperBound === null) {
-          tx.delete(messages)
-            .where(
-              and(
-                eq(messages.conversationId, target.conversationId),
-                gte(messages.position, target.position),
-              ),
-            )
-            .run()
-        } else {
-          tx.delete(messages)
-            .where(
-              and(
-                eq(messages.conversationId, target.conversationId),
-                gte(messages.position, target.position),
-                lt(messages.position, upperBound),
-              ),
-            )
-            .run()
-        }
-
-        // 2) If there were rows after the deleted turn, renumber via two-pass.
-        if (turnLength !== Infinity) {
-          tx.update(messages)
-            .set({ position: sql`-${messages.position}` })
-            .where(
-              and(
-                eq(messages.conversationId, target.conversationId),
-                gte(messages.position, upperBound!),
-              ),
-            )
-            .run()
-          tx.update(messages)
-            .set({ position: sql`-${messages.position} - ${turnLength}` })
-            .where(
-              and(
-                eq(messages.conversationId, target.conversationId),
-                lt(messages.position, 0),
-              ),
-            )
-            .run()
-        }
-
+        tx.delete(messages)
+          .where(
+            and(
+              eq(messages.conversationId, target.conversationId),
+              gte(messages.position, target.position),
+            ),
+          )
+          .run()
         tx.update(conversations)
           .set({ updatedAt: Date.now() })
           .where(eq(conversations.id, target.conversationId))
@@ -257,7 +203,7 @@ export function makeMessagesRepo(db: DB, opts: RepoOpts = {}) {
           ...base,
           op: 'deleteUserTurn',
           durationMs: round(performance.now() - t0),
-          turnLength: turnLength === Infinity ? null : turnLength,
+          fromPosition: target.position,
         },
         'repo.deleteUserTurn',
       )

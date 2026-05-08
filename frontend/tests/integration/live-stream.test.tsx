@@ -171,6 +171,102 @@ describe('live stream — slice 15 integration', () => {
     expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument()
   })
 
+  test('delete after a just-streamed turn clears the live branch (no orphan bubble)', async () => {
+    // Repro the regression: stream a turn → post-settle invalidate persists
+    // it → user deletes that turn → cascade-to-end empties history → live
+    // chat.state still holds the just-finished turn → without resetting the
+    // stream, the live branch re-appears and renders the orphaned assistant
+    // text. With chat.reset() in handleDeleteTurn, the live branch stays
+    // hidden and the assistant text is gone.
+    let deleteCalled = false
+    const finishedDetail = {
+      id: '01CONV',
+      title: 'Ibuprofen',
+      createdAt: '2026-05-08T00:00:00Z',
+      updatedAt: '2026-05-08T00:00:01Z',
+      messages: [
+        {
+          id: '01USER',
+          role: 'user' as const,
+          content: 'What is ibuprofen?',
+          position: 0,
+          createdAt: '2026-05-08T00:00:00Z',
+        },
+        {
+          id: '01ASSIST',
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: 'Ibuprofen is an NSAID.' }],
+          position: 1,
+          createdAt: '2026-05-08T00:00:01Z',
+          usage: { inputTokens: 12, outputTokens: 8, model: 'sonnet-4.6', costUsd: 0.0001 },
+        },
+      ],
+    }
+
+    server.use(
+      respondWithSSE([
+        { event: 'start', data: idStart },
+        { event: 'text-delta', data: { delta: 'Ibuprofen ' } },
+        { event: 'text-delta', data: { delta: 'is an NSAID.' } },
+        {
+          event: 'metadata',
+          data: {
+            messageId: '01ASSIST',
+            model: 'sonnet-4.6',
+            inputTokens: 12,
+            outputTokens: 8,
+            cacheReadTokens: 0,
+            cacheCreateTokens: 0,
+            latencyMs: 100,
+            costUsd: 0.0001,
+          },
+        },
+      ]),
+      http.get('http://localhost:3000/api/conversations/01CONV', () =>
+        // Pre-delete: return the persisted turn. Post-delete: cascade-to-end
+        // means the conversation is empty.
+        HttpResponse.json(
+          deleteCalled ? { ...finishedDetail, messages: [] } : finishedDetail,
+        ),
+      ),
+      http.delete('http://localhost:3000/api/messages/01USER', () => {
+        deleteCalled = true
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+
+    renderChat()
+    await send('What is ibuprofen?')
+
+    // Wait for the live stream to settle and history to take over. The
+    // post-settle invalidate puts the persisted turn into `conversation`,
+    // which makes `liveTurnAlreadyInHistory` true and hides the live
+    // branch. Only the historical UserMessage wires `onDeleteTurn`; a
+    // click on the live branch's user bubble would call `undefined` and
+    // the DELETE would silently no-op. Give React enough time to flush
+    // the GET response into state.
+    await waitFor(
+      () => expect(screen.getByText('Ibuprofen is an NSAID.')).toBeInTheDocument(),
+      { timeout: 2000 },
+    )
+    await new Promise((r) => setTimeout(r, 200))
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /more actions/i }))
+    await user.click(screen.getByRole('menuitem', { name: /delete/i }))
+    await user.click(screen.getByRole('button', { name: /^Delete$/ }))
+
+    await waitFor(() => expect(deleteCalled).toBe(true))
+    // Once the post-delete invalidate has run AND chat.reset() has cleared
+    // the live state, neither the history branch nor the live branch should
+    // render the assistant text anywhere.
+    await waitFor(
+      () => expect(screen.queryByText('Ibuprofen is an NSAID.')).toBeNull(),
+      { timeout: 2000 },
+    )
+    expect(screen.queryByText('What is ibuprofen?')).toBeNull()
+  })
+
   // Suppress unused-import warning while keeping the import available for
   // any future tests in this file that need fake timers.
   void act

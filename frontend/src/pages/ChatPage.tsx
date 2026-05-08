@@ -154,6 +154,10 @@ export function ChatPage() {
     }
     await invalidateHistory()
     await invalidateConversations()
+    // Cascade-to-end means the live branch's just-finished turn (if any) is
+    // no longer in history. Reset the stream state so it doesn't re-render
+    // as an orphaned bubble after invalidate.
+    chat.reset()
   }
 
   // Only show the live MessageList branch when there's something live to show
@@ -247,12 +251,14 @@ export function ChatPage() {
                 key={turn.user.id}
                 style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
               >
-                <UserMessage text={turn.user.text} />
+                <UserMessage
+                  text={turn.user.text}
+                  onDeleteTurn={() => handleDeleteTurn(turn.user.id)}
+                />
                 {turn.assistant && (
                   <AssistantMessage
                     assistant={turn.assistant}
                     phase="done"
-                    onDeleteTurn={() => handleDeleteTurn(turn.user.id)}
                     ttsOn={ttsOn}
                     /* Historical turns: don't auto-play retroactively when
                      * the user toggles TTS on while reading old messages.

@@ -44,6 +44,13 @@ export type ChatStreamHandle = {
   state: ChatStreamState
   send: (message: string) => { tempUserMessageId: string }
   abort: () => void
+  /**
+   * Drop any settled / errored / streaming state back to idle. Used after a
+   * destructive action (e.g. delete-turn cascade) where the live branch's
+   * just-finished turn has been removed from history and would otherwise
+   * re-render as an orphaned bubble.
+   */
+  reset: () => void
 }
 
 type Action =
@@ -212,7 +219,13 @@ export function useChatStream(opts: { conversationId?: string } = {}): ChatStrea
     abortRef.current = null
   }, [])
 
-  return { state, send, abort }
+  const reset = useCallback(() => {
+    abortRef.current?.abort()
+    abortRef.current = null
+    dispatch({ kind: 'reset' })
+  }, [])
+
+  return { state, send, abort, reset }
 }
 
 async function streamChat(
