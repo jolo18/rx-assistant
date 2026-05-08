@@ -1,4 +1,4 @@
-import { useCallback, useReducer, useRef } from 'react'
+import { useCallback, useEffect, useReducer, useRef } from 'react'
 import { parseSSE } from '../lib/sse-parse'
 import {
   ChatEventParseError,
@@ -165,6 +165,29 @@ export function useChatStream(opts: { conversationId?: string } = {}): ChatStrea
   const [state, dispatch] = useReducer(reducer, INITIAL)
   const abortRef = useRef<AbortController | null>(null)
   const conversationId = opts.conversationId
+
+  // Reset on conversation change so a previous turn's state doesn't bleed
+  // through onto a different chat's view. We skip the very first mount AND
+  // the mid-stream route push (when the in-flight stream's own conversationId
+  // already equals the incoming route id, e.g. POST without a conversationId
+  // resolved to one server-side and we just navigated to /c/<newId>).
+  const stateRef = useRef(state)
+  stateRef.current = state
+  const firstRunRef = useRef(true)
+  useEffect(() => {
+    if (firstRunRef.current) {
+      firstRunRef.current = false
+      return
+    }
+    const liveCid =
+      stateRef.current.phase === 'streaming' || stateRef.current.phase === 'done'
+        ? stateRef.current.assistant.conversationId
+        : undefined
+    if (liveCid && liveCid === conversationId) return
+    abortRef.current?.abort()
+    abortRef.current = null
+    dispatch({ kind: 'reset' })
+  }, [conversationId])
 
   const send = useCallback(
     (message: string) => {

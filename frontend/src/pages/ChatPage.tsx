@@ -37,6 +37,15 @@ export function ChatPage() {
   const [draft, setDraft] = useState('')
   const [pendingUser, setPendingUser] = useState<{ id: string; text: string } | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => isMobileViewport())
+  const [isMobile, setIsMobile] = useState(() => isMobileViewport())
+
+  // Drop the optimistic bubble when the user navigates to a different
+  // conversation, so we don't render a previous conversation's pending
+  // message on top of the new conversation's history.
+  useEffect(() => {
+    setPendingUser(null)
+    setDraft('')
+  }, [routeConversationId])
 
   const turns = useMemo<Turn[]>(
     () => (conversation ? groupIntoTurns(conversation.messages) : []),
@@ -80,6 +89,7 @@ export function ChatPage() {
   useEffect(() => {
     const mql = window.matchMedia(MOBILE_QUERY)
     const onChange = (e: MediaQueryListEvent) => {
+      setIsMobile(e.matches)
       if (e.matches) setSidebarCollapsed(true)
     }
     mql.addEventListener('change', onChange)
@@ -125,8 +135,20 @@ export function ChatPage() {
     if (liveTurnAlreadyInHistory) setPendingUser(null)
   }, [liveTurnAlreadyInHistory])
 
+  const showMobileBackdrop = isMobile && !sidebarCollapsed
+
   return (
-    <div className="rx-shell" style={{ display: 'flex', minHeight: '100vh' }}>
+    <div
+      className={'rx-shell rx-app' + (isMobile ? ' rx-app--mobile' : '')}
+      style={{ display: 'flex', minHeight: '100vh' }}
+    >
+      {showMobileBackdrop && (
+        <div
+          className="rx-sidebar-backdrop"
+          aria-hidden="true"
+          onClick={() => setSidebarCollapsed(true)}
+        />
+      )}
       <Sidebar
         conversations={conversations}
         loading={conversationsLoading}
@@ -151,6 +173,7 @@ export function ChatPage() {
           display: 'flex',
           flexDirection: 'column',
           minHeight: '100vh',
+          minWidth: 0,
         }}
       >
         <MobileTop
@@ -161,6 +184,7 @@ export function ChatPage() {
           style={{
             flex: 1,
             overflowY: 'auto',
+            overflowX: 'hidden',
             padding: '32px 32px 16px',
             display: 'flex',
             flexDirection: 'column',
@@ -168,6 +192,7 @@ export function ChatPage() {
             maxWidth: 760,
             margin: '0 auto',
             width: '100%',
+            minWidth: 0,
           }}
         >
           {hydratingHistory && <LoadingSkeleton />}

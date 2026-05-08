@@ -153,7 +153,8 @@
   box-sizing: border-box;
 }
 
-.rx-root button {
+.rx-root button,
+.rx-app button {
   font-family: inherit;
   font-size: inherit;
   color: inherit;

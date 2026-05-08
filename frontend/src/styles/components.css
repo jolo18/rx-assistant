@@ -114,7 +114,21 @@
     z-index: 50;
     width: min(86vw, 320px);
     flex: 0 0 auto;
-    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.35);
+  }
+}
+
+/* Click-to-dismiss backdrop behind the open mobile sidebar sheet. */
+.rx-sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .rx-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 49;
+    background: rgba(0, 0, 0, 0.35);
   }
 }
 
@@ -289,6 +303,10 @@
   color: var(--text-disabled);
   border-top: var(--el-1);
   flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s-2);
 }
 
 .rx-sidebar--collapsed {
@@ -336,6 +354,11 @@
   border-radius: var(--r-md);
   border-top-right-radius: var(--r-xs);
   color: var(--text-primary);
+  /* Allow long unbreakable tokens (URLs, drug names, base64 strings) to
+   * wrap inside the bubble. Without this, max-width is silently overridden
+   * by an intrinsic min-content of the longest word. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .rx-msg__footer {
@@ -375,12 +398,36 @@
   flex-direction: column;
   gap: var(--s-4);
   width: 100%;
+  min-width: 0;
 }
 
 .rx-amsg__blocks {
   display: flex;
   flex-direction: column;
   gap: var(--s-4);
+  min-width: 0;
+}
+
+/* react-markdown emits <pre><code> for fenced blocks. The default
+ * white-space: pre lets long lines blow up the column width on narrow
+ * viewports — wrap them inside the box and fall back to a vertical
+ * scroll only if the block exceeds max-height. */
+.rx-amsg pre,
+.rx-amsg code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+  max-width: 100%;
+}
+
+.rx-amsg pre {
+  background: var(--bg-surface);
+  border: var(--el-1);
+  border-radius: var(--r-sm);
+  padding: var(--s-3);
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: 320px;
 }
 
 .rx-text > p { margin: 0; }
@@ -485,7 +532,7 @@
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  padding: 10px var(--s-3);
+  padding: 12px 16px;
   width: 100%;
   text-align: left;
   color: var(--text-secondary);
@@ -557,6 +604,8 @@
   flex-direction: column;
   align-items: flex-start;
   position: relative;
+  width: 100%;
+  min-width: 0;
 }
 
 .rx-tool::before {
@@ -574,8 +623,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
-  height: 30px;
-  padding: 0 12px 0 10px;
+  height: 32px;
+  padding: 0 14px 0 12px;
   border-radius: var(--r-pill);
   border: 1px solid;
   font-family: var(--font-sans);
@@ -696,6 +745,7 @@
 .rx-tool__body {
   margin-top: var(--s-3);
   width: 100%;
+  min-width: 0;
   border: 1px solid var(--border-strong);
   border-radius: var(--r-md);
   background: var(--bg-surface);
@@ -737,9 +787,11 @@
   font-family: var(--font-mono);
   font-size: 12.5px;
   line-height: 22px;
-  white-space: pre;
-  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   max-height: 220px;
+  overflow-y: auto;
 }
 
 .rx-deflist {
@@ -782,10 +834,27 @@
 .rx-mfooter {
   display: flex;
   align-items: center;
-  gap: var(--s-2);
+  flex-wrap: nowrap;
+  gap: 6px;
   color: var(--text-secondary);
   position: relative;
   padding-top: var(--s-1);
+  min-width: 0;
+}
+
+/* The meta line stays compact at every breakpoint (model · tokens · cost):
+ * caption tokens default to 12px which crowds the row too easily once a
+ * full model id is in there. 11px keeps it on a single line. */
+.rx-mfooter .t-caption {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Truncate the model name first if there's still not enough room. */
+.rx-mfooter > .t-caption:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .rx-mfooter__sep { opacity: 0.5; }
@@ -921,12 +990,24 @@
   min-height: 40px;
   max-height: 152px;
   font-family: var(--font-sans);
+  /* The composer label/placeholder stays compact at every breakpoint —
+   * the design's t-body-md (15px) is too large for the single-line
+   * affordance the input shows by default. */
+  font-size: 13px;
+  line-height: 20px;
   scrollbar-width: none;
 }
 
 .rx-composer__input::-webkit-scrollbar {
   width: 0;
   height: 0;
+}
+
+@media (max-width: 720px) {
+  .rx-composer__input {
+    padding: 6px var(--s-2);
+    min-height: 36px;
+  }
 }
 
 .rx-composer__input::placeholder {
@@ -1303,7 +1384,8 @@
 
 .rx-mobiletop {
   height: 52px;
-  display: flex;
+  /* `display` is owned by the responsive rules near the top of this file:
+   * `display: none` by default, `display: flex` under @media (max-width: 720px). */
   align-items: center;
   justify-content: space-between;
   padding: 0 var(--s-3);
@@ -1488,36 +1570,36 @@
 /* ╭─────────────────────── Theme toggle ─────────────────────╮ */
 
 .rx-themetoggle {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 1000;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: var(--r-pill);
-  background: rgba(244, 239, 226, 0.94);
-  color: #1C1B17;
-  border: 1px solid rgba(28, 27, 23, 0.12);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
-  backdrop-filter: blur(8px);
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--r-md);
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  border: var(--el-1);
   font-family: "Inter", system-ui, sans-serif;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 120ms;
+  transition: background var(--dur-fast) var(--ease-std);
 }
 
-.rx-themetoggle:hover { background: rgba(228, 219, 196, 0.96); }
+.rx-themetoggle:hover { background: var(--bg-surface-raised); }
 
-[data-theme="dark"] .rx-themetoggle {
-  background: rgba(38, 36, 31, 0.94);
-  color: #EAE3D2;
-  border-color: rgba(234, 227, 210, 0.16);
+/* In the collapsed sidebar strip, render as a square icon-only chip so it
+ * fits the 56px column. */
+.rx-sidebar--collapsed .rx-themetoggle {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  gap: 0;
 }
 
-[data-theme="dark"] .rx-themetoggle:hover { background: rgba(47, 44, 38, 0.98); }
+.rx-sidebar--collapsed .rx-themetoggle span {
+  display: none;
+}
 
 /* ╭─────────────────────── Inline confirm ────────────────────╮ */
 

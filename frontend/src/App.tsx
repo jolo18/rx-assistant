@@ -1,5 +1,4 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
-import { ThemeToggle } from './components/ThemeToggle'
 import { ChatStreamProvider } from './hooks/chatStreamContext'
 import { useTheme } from './hooks/useTheme'
 import { ChatPage } from './pages/ChatPage'
@@ -13,7 +12,6 @@ function App() {
   return (
     <BrowserRouter>
       <ChatStreamProvider>
-        <ThemeToggle />
         <Routes>
           <Route path="/" element={<ChatPage />} />
           <Route path="/c/:id" element={<ChatPage />} />

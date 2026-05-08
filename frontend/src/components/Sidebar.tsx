@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import type { ApiError, ConversationSummary } from '../lib/api'
 import { Edit, More, Plus, Sidebar as SidebarIcon, Trash } from './icons'
+import { ThemeToggle } from './ThemeToggle'
 
 type SidebarProps = {
   conversations: ConversationSummary[]
@@ -47,6 +48,9 @@ export function Sidebar({
         >
           <Edit size={18} />
         </button>
+        <div style={{ marginTop: 'auto' }}>
+          <ThemeToggle />
+        </div>
       </aside>
     )
   }
@@ -137,8 +141,9 @@ export function Sidebar({
           })}
       </nav>
 
-      <div className="rx-sidebar__foot t-caption">
-        Single-user · informational only
+      <div className="rx-sidebar__foot">
+        <ThemeToggle />
+        <span className="t-caption">Single-user · informational only</span>
       </div>
     </aside>
   )

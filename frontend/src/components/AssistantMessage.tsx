@@ -9,8 +9,8 @@
  */
 
 import { useState } from 'react'
-import type { AssistantMessageInProgress } from '../hooks/useChatStream'
-import type { ErrorCode } from '../lib/chat-events'
+import type { AssistantMessageInProgress, ToolCallSlot } from '../hooks/useChatStream'
+import type { ErrorCode, ToolResultOutput } from '../lib/chat-events'
 import { AnswerBody } from './AnswerBody'
 import { Caret } from './Caret'
 import { CappedNotice } from './CappedNotice'
@@ -46,35 +46,38 @@ export function AssistantMessage({
 }: AssistantMessageProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  // null = follow the auto-state (expanded while streaming, collapsed once
+  // settled). true/false = user has explicitly toggled.
+  const [reasoningOverride, setReasoningOverride] = useState<boolean | null>(null)
   const settled = phase !== 'streaming'
   const hasReasoning = assistant.reasoning.text.length > 0
   const lastStep = assistant.steps.at(-1)
   const showCapped = liveCapped && lastStep?.reason === 'capped'
 
-  const reasoningState: ReasoningPanelState = hasReasoning
-    ? assistant.reasoning.done
-      ? 'settled-collapsed'
-      : 'streaming-expanded'
-    : 'settled-collapsed'
+  const streamingReasoning = hasReasoning && !assistant.reasoning.done
+  const reasoningExpanded =
+    reasoningOverride !== null ? reasoningOverride : streamingReasoning
+  const reasoningState: ReasoningPanelState = streamingReasoning
+    ? reasoningExpanded
+      ? 'streaming-expanded'
+      : 'streaming-collapsed'
+    : reasoningExpanded
+      ? 'settled-expanded'
+      : 'settled-collapsed'
 
   return (
     <article className="rx-amsg">
       <div className="rx-amsg__blocks">
         {hasReasoning && (
-          <ReasoningPanel state={reasoningState} text={assistant.reasoning.text} />
+          <ReasoningPanel
+            state={reasoningState}
+            text={assistant.reasoning.text}
+            onToggle={() => setReasoningOverride(!reasoningExpanded)}
+          />
         )}
 
         {assistant.toolCalls.map((tc) => (
-          <ToolCall
-            key={tc.id}
-            name={tc.name}
-            state={tc.state}
-            duration={
-              settled && tc.state === 'complete-success' && tc.durationMs
-                ? `${(tc.durationMs / 1000).toFixed(1)}s`
-                : undefined
-            }
-          />
+          <ToolCallSlotRenderer key={tc.id} tc={tc} settled={settled} />
         ))}
 
         {assistant.text && (
@@ -122,5 +125,38 @@ export function AssistantMessage({
         )}
       </div>
     </article>
+  )
+}
+
+/**
+ * One ToolCall row — owns its own expand + raw-view state so multiple tool
+ * calls in the same turn don't share toggles.
+ */
+function ToolCallSlotRenderer({ tc, settled }: { tc: ToolCallSlot; settled: boolean }) {
+  const [expanded, setExpanded] = useState(false)
+  const [rawView, setRawView] = useState(false)
+
+  const duration =
+    settled && tc.state === 'complete-success' && tc.durationMs
+      ? `${(tc.durationMs / 1000).toFixed(1)}s`
+      : undefined
+
+  const inputJson =
+    tc.input !== undefined ? JSON.stringify(tc.input, null, 2) : tc.partialInput
+  const outputJson = tc.output !== undefined ? JSON.stringify(tc.output, null, 2) : ''
+
+  return (
+    <ToolCall
+      name={tc.name}
+      state={tc.state}
+      duration={duration}
+      expanded={expanded}
+      rawView={rawView}
+      input={inputJson}
+      output={outputJson}
+      outputValue={tc.output as ToolResultOutput | undefined}
+      onToggleExpanded={() => setExpanded((e) => !e)}
+      onToggleRaw={() => setRawView((r) => !r)}
+    />
   )
 }
