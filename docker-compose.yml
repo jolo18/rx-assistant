@@ -1,0 +1,47 @@
+# rx-assistant — local docker-compose for the assignment's Phase 4 deliverable.
+#
+# Usage:
+#   cp backend/.env.example backend/.env   # then fill in OPENROUTER_API_KEY
+#   docker compose up
+#
+# Cleanup:
+#   docker compose down            # stops containers, keeps the sqlite volume
+#   docker compose down -v         # also wipes the sqlite volume
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: rx-assistant-backend:latest
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      # Override DATABASE_PATH so it lands inside the named volume regardless
+      # of what the .env file says (the host path makes no sense in-container).
+      DATABASE_PATH: /data/app.db
+    ports:
+      - "8787:8787"
+    volumes:
+      - sqlite-data:/data
+    # Healthcheck declared in the Dockerfile (HEALTHCHECK directive). compose
+    # honors it for `depends_on: service_healthy` below.
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: rx-assistant-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        # The assignment's "services should only start once their dependencies
+        # are healthy" rule. Frontend's nginx upstream is `backend:8787`; if
+        # backend isn't healthy yet the proxy returns 502.
+        condition: service_healthy
+
+volumes:
+  sqlite-data:

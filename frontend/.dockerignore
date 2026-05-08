@@ -1,0 +1,25 @@
+# Keep the build context tight.
+
+node_modules
+dist
+coverage
+.bun-cache
+
+# Tests don't ship in the container; they ran in CI.
+tests
+
+# Local-only files
+.env
+.env.local
+.env.*.local
+.git
+.github
+
+# Editor noise
+.DS_Store
+.vscode
+.idea
+
+# Docs
+*.md
+LICENSE

@@ -32,6 +32,32 @@ bun run dev                # opens http://localhost:5173
 
 `vite.config.ts` proxies `/api/*` → `http://localhost:8787`, so the frontend talks to the backend without CORS gymnastics.
 
+### …or run with Docker (Phase 4)
+
+```sh
+git clone <this-repo> rx-assistant
+cd rx-assistant
+
+cp backend/.env.example backend/.env       # then fill in OPENROUTER_API_KEY
+docker compose up                          # backend + frontend, single command
+```
+
+That brings up two containers:
+
+- **`backend`** on `:8787` — `oven/bun:1-slim` based image, runs as non-root user `rx` (uid 1001). The container's entrypoint runs Drizzle migrations against the sqlite volume *before* the server accepts traffic, so the very first `/api/chat` hits a schema-current DB. A `HEALTHCHECK` polls `/health` every 10 s.
+- **`frontend`** on `:5173` (mapped from container `:80`) — multi-stage build: `oven/bun:1-slim` produces the Vite `dist/`, then `nginx:1-alpine` serves it. nginx proxies `/api/*` to `backend:8787` with `proxy_buffering off` (load-bearing for SSE — without it the chat stream arrives in a single chunk at end-of-response).
+
+The frontend container declares `depends_on: { backend: { condition: service_healthy } }` per the assignment — frontend nginx never starts until backend's `/health` returns 200. SQLite lives in a named volume (`sqlite-data:/data`) that survives `docker compose down` but is wiped by `docker compose down -v`.
+
+```sh
+# Common ops
+docker compose ps                          # status + healthcheck state
+docker compose logs -f backend             # live structured pino JSON
+docker compose down                        # stop, keep volume
+docker compose down -v                     # stop + clear sqlite-data volume
+docker compose up --build                  # rebuild after code changes
+```
+
 ### Required env (backend)
 
 | Variable | Required? | Default | Purpose |
