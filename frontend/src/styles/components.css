@@ -454,7 +454,6 @@
   border: var(--el-1);
   border-radius: var(--r-md);
   background: var(--bg-surface);
-  overflow: hidden;
 }
 
 .rx-reasoning__head {
@@ -465,7 +464,13 @@
   width: 100%;
   text-align: left;
   color: var(--text-secondary);
+  border-radius: var(--r-md);
   transition: background var(--dur-fast) var(--ease-std);
+}
+
+.rx-reasoning.is-expanded .rx-reasoning__head {
+  border-bottom: 1px dashed var(--border-subtle);
+  border-radius: var(--r-md) var(--r-md) 0 0;
 }
 
 .rx-reasoning__head:hover {
@@ -513,8 +518,6 @@
 
 .rx-reasoning__body {
   padding: 0 var(--s-3) var(--s-3);
-  border-top: 1px dashed var(--border-subtle);
-  margin-top: -1px;
 }
 
 .rx-reasoning__body p {
@@ -856,9 +859,6 @@
 .rx-errorpill__retry {
   margin-left: var(--s-2);
   color: var(--error-fg);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  text-decoration-thickness: 1px;
 }
 
 /* ╭─────────────────────── Composer ──────────────────────────╮ */
