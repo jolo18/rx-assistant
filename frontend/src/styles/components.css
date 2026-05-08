@@ -1094,6 +1094,16 @@
   cursor: not-allowed;
 }
 
+/* WCAG 2.5.5 / iOS HIG — touch targets ≥ 44×44 CSS px on mobile.
+ * Desktop keeps the design's denser 36×36 hit area. */
+@media (max-width: 720px) {
+  .rx-composer__btn,
+  .rx-composer__send {
+    width: 44px;
+    height: 44px;
+  }
+}
+
 .rx-composer__spin {
   width: 14px;
   height: 14px;

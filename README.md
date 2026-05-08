@@ -64,9 +64,21 @@ Each prompt below exercises a different slice of the wire format. With both serv
 | 7 | Set `OPENROUTER_API_KEY` to garbage and restart backend, then prompt | mid-stream error path — `<ErrorPill>` renders with code-specific copy ("Took too long…", "Service is busy…", etc.). Reload after the error: persisted user message + empty assistant row, no pill (documented L2). | acceptance §6.7 |
 | 8 | Set `MAX_AGENT_STEPS=2`, restart, then prompt for a multi-tool query | step-cap path — `<CappedNotice>` ("Stopped after the maximum number of reasoning steps") appears live, then `metadata` settles. Reload: notice gone (live-only L1). | acceptance §6.8 |
 | 9 | Toggle theme (sidebar foot) | global light↔dark, all surfaces re-tint via `[data-theme]` selectors against the design tokens | acceptance §6.9 |
-| 10 | Hover the disabled mic / TTS in the composer | native `title` tooltip — "Voice input arrives in Phase 3" / "Spoken replies arrive in Phase 3" | acceptance §6.10 |
+| 10 | Click the mic in the composer (Chrome) | recognition starts, recording dot pulses; speak "What is acetaminophen?" — pause for 5 seconds → auto-stops; transcript replaces the textarea draft | Phase 3 STT |
+| 11 | Block mic permission, click mic again | mic icon swaps to a Lock; tooltip: "Microphone permission denied — enable in browser settings" | Phase 3 V-F-1 |
+| 12 | Click the speaker icon in the composer | TTS toggle flips to on; speaker icon fills | Phase 3 §3.5 |
+| 13 | Send a healthcare prompt with TTS on | answer streams, then `<AudioPlayer>` mounts next to the footer and auto-plays the answer through the OS voices | Phase 3 §3.5 |
+| 14 | Send another prompt while the first is playing | prior utterance cancelled cleanly, new turn starts speaking (single-utterance invariant) | Phase 3 §3.4 |
+| 15 | Click pause on the AudioPlayer | speech pauses immediately; click play to resume from where it paused | Phase 3 |
 
-Stop after #10 — that's the recording.
+Stop after #15 — that's the recording.
+
+### Voice limitations (deliberate, see `specs/archive/phase-3-voice.md` §6)
+
+- Voice quality is OS-dependent. macOS / iOS voices are excellent; Linux / Windows defaults are rougher. Demo on macOS for cleanest sound.
+- `<AudioPlayer>` scrub bar is read-only — `SpeechSynthesisUtterance` doesn't expose duration.
+- iOS Safari requires a user gesture before the first `speak()` call. Tapping the TTS toggle counts.
+- Long messages are auto-chunked into ≤500-char segments and queued (Chrome's ~15 s utterance cut-off bug).
 
 ---
 
@@ -83,7 +95,8 @@ Stop after #10 — that's the recording.
                        │   │   └─ live turn       ←── useChatStream state machine   │
                        │   │                          (useReducer over §3.2 union)  │
                        │   │                          ←── parseChatEvent + parseSSE │
-                       │   └─ Composer (text only — voice disabled)                 │
+                       │   └─ Composer (text + mic via Web Speech API +             │
+                       │                TTS toggle via SpeechSynthesisUtterance)    │
                        └────────────────────────────────────────────────────────────┘
                                           ▲
                                           │  fetch + ReadableStream + TextDecoder
@@ -169,10 +182,14 @@ A dev-only **component gallery** at `http://localhost:5173/__components` (or `?g
 - **L3 — Tool durations are live-only.** `tool-call-result.durationMs` isn't persisted; the historical badge says "Complete".
 - **No conversation rename.** Backend has no `PATCH /api/conversations/:id`. Title remains auto-derived from the first 60 chars of the first user message.
 - **No mid-stream resume after page reload.** POST is not idempotent; user re-prompts manually if they reload before settle.
-- **Voice (mic + TTS) is Phase 3.** Buttons are visible but `disabled` with native `title` tooltips ("Voice input arrives in Phase 3" / "Spoken replies arrive in Phase 3"). `<AudioPlayer>` exists in the design source but is not mounted.
+- **Voice (mic + TTS)** ships in Phase 3 as fully browser-native: `SpeechRecognition` for input, `SpeechSynthesisUtterance` for output. No backend route, no API key, no GPU. See `specs/archive/phase-3-voice.md` for the full spec including the V-F-* failure modes.
 
 ---
 
-## Phase 1 closed at `62f81f3`
+## Phase status
 
-Backend ships unchanged from there. All Phase 2 work is in `frontend/`. Slice-by-slice commit history: `git log --oneline --grep="slice"`.
+- **Phase 1** (backend) closed at `62f81f3` — 170 / 170 tests, archived spec at `specs/archive/phase-1-agentic-streaming-backend.md`.
+- **Phase 2** (frontend) closed at `2a680b2` — 175 / 175 tests at the close, archived spec at `specs/archive/phase-2-frontend.md`.
+- **Phase 3** (voice) closed — STT via Web Speech API, TTS via `SpeechSynthesisUtterance`, archived spec at `specs/archive/phase-3-voice.md`. Frontend test count at the close: 220 / 220.
+
+Slice-by-slice history: `git log --oneline --grep="slice"`.
