@@ -1,0 +1,33 @@
+# Keep the build context tight. Anything not needed at runtime stays out so
+# image layers stay cacheable across edits.
+
+# Local artifacts
+node_modules
+data
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+.bun-cache
+
+# Tooling we don't run inside the image
+tests
+coverage
+*.test.ts
+
+# Local-only files
+.env
+.env.local
+.env.*.local
+.git
+.gitignore
+.github
+
+# Docs
+*.md
+LICENSE
+
+# Editor noise
+.DS_Store
+.vscode
+.idea
