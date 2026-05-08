@@ -102,13 +102,15 @@ describe('Composer', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
-  test('mic button is disabled with the phase-3 tooltip and clicking is a no-op', async () => {
+  test('mic button is disabled with an unsupported tooltip when SpeechRecognition is missing', async () => {
+    // No SpeechRecognition mock installed in this file — feature-detection
+    // lands the hook in the `unsupported` phase and the mic stays disabled.
     const user = userEvent.setup()
     const onSubmit = vi.fn()
     render(<ControlledHarness initialValue="x" onSubmit={onSubmit} />)
     const mic = screen.getByRole('button', { name: /voice input/i })
     expect(mic).toBeDisabled()
-    expect(mic).toHaveAttribute('title', 'Voice input arrives in Phase 3')
+    expect(mic).toHaveAttribute('title', expect.stringMatching(/not supported/i))
     await user.click(mic)
     expect(onSubmit).not.toHaveBeenCalled()
   })

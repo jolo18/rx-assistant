@@ -1,5 +1,6 @@
 import type { KeyboardEvent } from 'react'
-import { Lock, Send, SpeakerOff } from './icons'
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
+import { Lock, Mic, Send, SpeakerOff, Stop } from './icons'
 
 export type ComposerPhase = 'idle' | 'submitting' | 'streaming' | 'done' | 'error'
 
@@ -12,8 +13,15 @@ type ComposerProps = {
   focused?: boolean
 }
 
-const VOICE_TOOLTIP = 'Voice input arrives in Phase 3'
 const TTS_TOOLTIP = 'Spoken replies arrive in Phase 3'
+
+const MIC_TOOLTIPS = {
+  idle: 'Voice input',
+  recording: 'Stop recording',
+  denied: 'Microphone permission denied — enable in browser settings',
+  unsupported: 'Voice input not supported in this browser',
+  error: 'Voice input failed — try again',
+} as const
 
 export function Composer({
   value,
@@ -28,6 +36,16 @@ export function Composer({
   const trimmed = value.trim()
   const canSubmit = trimmed.length > 0 && !locked
 
+  const speech = useSpeechRecognition({
+    onTranscript: (text) => {
+      onChange(text)
+    },
+  })
+  const recording = speech.state.phase === 'recording'
+  const micDisabled =
+    speech.state.phase === 'unsupported' || speech.state.phase === 'denied'
+  const micTooltip = MIC_TOOLTIPS[speech.state.phase] ?? MIC_TOOLTIPS.idle
+
   function tryOnSubmit() {
     if (!canSubmit) return
     onSubmit(trimmed)
@@ -38,6 +56,11 @@ export function Composer({
       e.preventDefault()
       tryOnSubmit()
     }
+  }
+
+  function toggleMic() {
+    if (recording) speech.stop()
+    else speech.start()
   }
 
   return (
@@ -54,12 +77,29 @@ export function Composer({
         <div className="rx-composer__actions">
           <button
             type="button"
-            className="rx-composer__btn rx-composer__mic is-denied"
+            className={
+              'rx-composer__btn rx-composer__mic' +
+              (recording ? ' is-recording' : '') +
+              (speech.state.phase === 'denied' ? ' is-denied' : '')
+            }
             aria-label="Voice input"
-            title={VOICE_TOOLTIP}
-            disabled
+            aria-pressed={recording}
+            title={micTooltip}
+            disabled={micDisabled}
+            onClick={toggleMic}
           >
-            <Lock size={16} />
+            {speech.state.phase === 'denied' ? (
+              <Lock size={16} />
+            ) : speech.state.phase === 'unsupported' ? (
+              <Lock size={16} />
+            ) : recording ? (
+              <>
+                <span className="rx-composer__recdot" aria-hidden="true" />
+                <Stop size={14} />
+              </>
+            ) : (
+              <Mic size={16} />
+            )}
           </button>
           <button
             type="button"
@@ -92,4 +132,3 @@ export function Composer({
     </div>
   )
 }
-
