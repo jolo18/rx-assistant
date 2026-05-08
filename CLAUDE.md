@@ -5,6 +5,7 @@ Senior FS engineer take-home. **All four phases are closed.** The repo is the fi
 Authoritative sources:
 - `ASSIGNMENT.md` — full assignment text
 - `README.md` — project overview, architecture diagram, run-with-docker quickstart, end-to-end demo script
+- `docs/architecture.md` — **aggregated system reference** synthesizing decisions, schema, trade-offs, and failure modes across all four phases (start here if you want the system at a glance)
 - `specs/archive/phase-4-deploy-ci.md` — closed Phase 4 DevOps spec
 - `specs/archive/phase-3-voice.md` — closed Phase 3 voice spec
 - `specs/archive/phase-2-frontend.md` — closed Phase 2 frontend spec
