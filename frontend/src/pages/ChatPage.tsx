@@ -178,7 +178,7 @@ export function ChatPage() {
   return (
     <div
       className={'rx-shell rx-app' + (isMobile ? ' rx-app--mobile' : '')}
-      style={{ display: 'flex', minHeight: '100vh' }}
+      style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}
     >
       {showMobileBackdrop && (
         <div
@@ -210,7 +210,8 @@ export function ChatPage() {
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          minHeight: '100vh',
+          height: '100%',
+          minHeight: 0,
           minWidth: 0,
         }}
       >

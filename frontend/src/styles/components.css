@@ -548,7 +548,7 @@
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  padding: 12px 26px;
+  padding: 12px !important;
   width: 100%;
   text-align: left;
   color: var(--text-secondary);
@@ -640,11 +640,11 @@
   align-items: center;
   gap: var(--s-2);
   height: 32px;
-  padding: 0 24px 0 22px;
+  padding: 0 12px 0 10px !important;
   border-radius: var(--r-pill);
   border: 1px solid;
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 13px !important;
   font-weight: 500;
   line-height: 1;
   transition: background var(--dur-fast) var(--ease-std);
@@ -779,7 +779,10 @@
   padding: var(--s-2) var(--s-3);
   background: var(--bg-canvas);
   color: var(--text-secondary);
-  border-bottom: var(--el-1);
+  /* The bg-canvas band IS the visual divider against the section's
+   * bg-surface body — no border-bottom needed here. Stacking a border
+   * with the section+section border-top would render as two parallel
+   * 1 px lines around every header band. */
   text-transform: uppercase;
   letter-spacing: 0.04em;
   font-size: 11px;
@@ -877,6 +880,18 @@
 
 .rx-mfooter__cached { color: var(--text-disabled); }
 
+/* The anchor is the positioned ancestor for both the actions menu and the
+ * delete-confirm popup. Inline-flex so it sits at the natural end of the
+ * meta line; position:relative so the absolute popups inside align to its
+ * right edge. */
+.rx-mfooter__menuanchor {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
 .rx-mfooter__more {
   width: 22px;
   height: 22px;
@@ -885,7 +900,6 @@
   align-items: center;
   justify-content: center;
   color: var(--text-secondary);
-  margin-left: auto;
   opacity: 0;
   transition: opacity var(--dur-fast) var(--ease-std), background var(--dur-fast) var(--ease-std);
 }
@@ -923,6 +937,16 @@
   flex-direction: column;
 }
 
+/* MessageFooter sits at the bottom of an assistant message, immediately
+ * above the composer. Opening the menu downward gets it clipped behind
+ * the composer; flip it to render above the trigger. The sidebar's
+ * conv-row menu keeps its default downward placement. !important so the
+ * flip wins regardless of any future .rx-menu top/bottom overrides. */
+.rx-mfooter .rx-menu {
+  top: auto !important;
+  bottom: calc(100% + 4px) !important;
+}
+
 .rx-menu__item {
   display: flex;
   align-items: center;
@@ -955,7 +979,7 @@
   color: var(--tool-warn-fg);
   background: var(--tool-warn-bg);
   border: 1px solid var(--tool-warn-bd);
-  padding: 6px 22px;
+  padding: 6px 12px !important;
   border-radius: var(--r-pill);
   align-self: flex-start;
 }
@@ -969,19 +993,21 @@
   color: var(--error-fg);
   background: var(--error-bg);
   border: 1px solid var(--error-bd);
-  padding: 10px 24px;
+  padding: 10px 12px !important;
   border-radius: var(--r-md);
   align-self: flex-start;
 }
 
-/* Pill horizontal padding scales down on mobile so the pills don't run
- * past the column at narrow viewports. Per UX request: 10 px desktop,
- * 5 px mobile (additive over the design's tight 12-14 px baseline). */
+/* Pill horizontal padding tightens on mobile so the pills sit comfortably
+ * inside the narrower column. Tool pill keeps its asymmetric L/R baseline;
+ * the rest land on a uniform 7.5 px H. !important is needed here too,
+ * otherwise the base rule's !important wins the cascade against this
+ * media-scoped rule. */
 @media (max-width: 720px) {
-  .rx-tool__pill { padding: 0 19px 0 17px; }
-  .rx-reasoning__head { padding: 12px 21px; }
-  .rx-capped { padding: 6px 17px; }
-  .rx-errorpill { padding: 10px 19px; }
+  .rx-tool__pill { padding: 0 7.5px 0 5px !important; }
+  .rx-reasoning__head { padding: 12px 7.5px !important; }
+  .rx-capped { padding: 6px 7.5px !important; }
+  .rx-errorpill { padding: 10px 7.5px !important; }
 }
 
 .rx-errorpill__retry {
@@ -1617,31 +1643,31 @@
 
 /* ╭─────────────────────── Theme toggle ─────────────────────╮ */
 
-/* Foot row, not a card: transparent by default so it sits with the
- * "Single-user · informational only" caption below it instead of competing
- * with the conversation rows above. Hover lights up the same muted surface
- * the conv rows use. */
+/* Icon-only square button. Sits in the sidebar foot opposite the
+ * informational caption. Surface-raised background advertises that it's
+ * tappable; hover darkens slightly. */
 .rx-themetoggle {
+  width: 28px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: var(--r-md);
-  background: transparent;
+  justify-content: center;
+  padding: 0 !important;
+  border-radius: var(--r-sm);
+  background: var(--bg-surface-raised);
   color: var(--text-secondary);
-  border: 0;
-  font-family: "Inter", system-ui, sans-serif;
-  font-size: 12px;
-  font-weight: 500;
+  border: var(--el-1);
   cursor: pointer;
+  flex: 0 0 auto;
   transition: background var(--dur-fast) var(--ease-std),
-              color var(--dur-fast) var(--ease-std);
+              color var(--dur-fast) var(--ease-std),
+              border-color var(--dur-fast) var(--ease-std);
 }
 
 .rx-themetoggle:hover {
-  background: var(--bg-surface-raised);
+  background: var(--bg-canvas);
   color: var(--text-primary);
+  border-color: var(--border-strong);
 }
 
 /* In the collapsed sidebar strip, render as a square icon-only chip so it
@@ -1649,7 +1675,9 @@
 .rx-sidebar--collapsed .rx-themetoggle {
   width: 36px;
   height: 36px;
-  padding: 0;
+  /* !important needed so the collapsed icon-only chip beats the base
+   * .rx-themetoggle padding rule, which is itself marked !important. */
+  padding: 0 !important;
   gap: 0;
 }
 
@@ -1659,15 +1687,30 @@
 
 /* ╭─────────────────────── Inline confirm ────────────────────╮ */
 
+/* Confirm popup — same anchor as the actions menu (inside
+ * .rx-mfooter__menuanchor), so it floats above the trigger instead of
+ * pushing inline against the meta line. Same upward-flip pattern as
+ * .rx-mfooter .rx-menu so it never gets clipped behind the composer. */
 .rx-confirm {
+  position: absolute;
+  top: auto;
+  bottom: calc(100% + 4px);
+  right: 0;
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
   padding: 6px 10px;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   background: var(--bg-surface);
   border: var(--el-1);
+  box-shadow: var(--el-3-shadow);
   color: var(--text-primary);
+  white-space: nowrap;
+  z-index: 5;
+}
+
+.rx-confirm__prompt {
+  white-space: nowrap;
 }
 
 .rx-confirm__btn {
