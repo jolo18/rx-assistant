@@ -9,9 +9,13 @@ type MessageFooterProps = {
   cost: number
   capped?: boolean
   showMenu?: boolean
+  /** When true, replaces the menu with an inline Cancel / Delete confirm row. */
+  confirmingDelete?: boolean
   onMore?: () => void
   onCopy?: () => void
   onDelete?: () => void
+  onConfirmDelete?: () => void
+  onCancelDelete?: () => void
 }
 
 const tokens = (n: number) => n.toLocaleString('en-US')
@@ -25,9 +29,12 @@ export function MessageFooter({
   cached,
   cost: costUsd,
   showMenu = false,
+  confirmingDelete = false,
   onMore,
   onCopy,
   onDelete,
+  onConfirmDelete,
+  onCancelDelete,
 }: MessageFooterProps) {
   return (
     <div className="rx-mfooter">
@@ -52,7 +59,7 @@ export function MessageFooter({
       >
         <More size={14} />
       </button>
-      {showMenu && (
+      {showMenu && !confirmingDelete && (
         <div className="rx-menu" role="menu">
           <button type="button" role="menuitem" className="rx-menu__item" onClick={onCopy}>
             <Copy size={14} />
@@ -68,6 +75,21 @@ export function MessageFooter({
             <span className="t-label">Delete</span>
           </button>
         </div>
+      )}
+      {confirmingDelete && (
+        <span className="rx-confirm" role="alertdialog" aria-label="Confirm delete turn">
+          <span className="t-caption">Delete this turn?</span>
+          <button type="button" className="rx-confirm__btn" onClick={onCancelDelete}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="rx-confirm__btn rx-confirm__btn--danger"
+            onClick={onConfirmDelete}
+          >
+            <Trash size={12} /> Delete
+          </button>
+        </span>
       )}
     </div>
   )

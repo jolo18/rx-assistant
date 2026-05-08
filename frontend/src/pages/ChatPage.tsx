@@ -1,11 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { AssistantMessage } from '../components/AssistantMessage'
 import { Composer } from '../components/Composer'
+import { LoadingSkeleton } from '../components/LoadingSkeleton'
 import { MessageList } from '../components/MessageList'
 import { MobileTop } from '../components/MobileTop'
 import { Sidebar } from '../components/Sidebar'
+import { UserMessage } from '../components/UserMessage'
 import { useChatStreamContext } from '../hooks/chatStreamContext'
+import { useConversation } from '../hooks/useConversation'
 import { useConversations } from '../hooks/useConversations'
+import { deleteMessage } from '../lib/api'
+import { groupIntoTurns, type Turn } from '../lib/turns'
 
 const MOBILE_QUERY = '(max-width: 720px)'
 
@@ -17,24 +23,59 @@ function isMobileViewport(): boolean {
 export function ChatPage() {
   const { id: routeConversationId } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { conversations, loading, error, deleteConversation } = useConversations()
+  const {
+    conversations,
+    loading: conversationsLoading,
+    error: conversationsError,
+    invalidate: invalidateConversations,
+    deleteConversation: deleteConversationApi,
+  } = useConversations()
+  const { conversation, loading: hydratingHistory, invalidate: invalidateHistory } =
+    useConversation(routeConversationId)
   const chat = useChatStreamContext()
 
   const [draft, setDraft] = useState('')
   const [pendingUser, setPendingUser] = useState<{ id: string; text: string } | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => isMobileViewport())
 
-  // Mid-stream route push: as soon as `start.conversationId` arrives on a
-  // brand-new conversation, swap the URL so the page is shareable. The
-  // ChatStreamProvider sits above <Routes>, so this navigate doesn't
-  // unmount us or clobber the in-flight stream.
+  const turns = useMemo<Turn[]>(
+    () => (conversation ? groupIntoTurns(conversation.messages) : []),
+    [conversation],
+  )
+
+  // The id (or temp id) of the user message that anchors the *live* turn — so
+  // we don't double-render it as both a history row + the optimistic bubble
+  // once invalidate brings the persisted version in.
+  const liveUserId =
+    chat.state.phase === 'streaming' || chat.state.phase === 'done'
+      ? chat.state.assistant.userMessageId
+      : undefined
+
+  // Mid-stream route push. Reading the canonical conversationId out of the
+  // state union here means the effect only fires when *that* value changes —
+  // not on every text-delta dispatch (which would update chat.state's
+  // identity without changing the conversationId).
+  const incomingConversationId =
+    chat.state.phase === 'streaming' || chat.state.phase === 'done'
+      ? chat.state.assistant.conversationId
+      : undefined
+
   useEffect(() => {
-    if (chat.state.phase !== 'streaming' && chat.state.phase !== 'done') return
-    const incoming = chat.state.assistant.conversationId
-    if (incoming && incoming !== routeConversationId) {
-      navigate(`/c/${incoming}`, { replace: true })
+    if (incomingConversationId && incomingConversationId !== routeConversationId) {
+      navigate(`/c/${incomingConversationId}`, { replace: true })
     }
-  }, [chat.state, routeConversationId, navigate])
+  }, [incomingConversationId, routeConversationId, navigate])
+
+  // Once the stream settles, invalidate history so the just-completed turn
+  // becomes part of the persisted view (replaces the live MessageList branch
+  // for the next render). Don't clear pendingUser yet — wait until history
+  // actually contains the user-message id, otherwise the optimistic bubble
+  // disappears in the gap between settle and reload.
+  useEffect(() => {
+    if (chat.state.phase !== 'done') return
+    void invalidateHistory()
+    void invalidateConversations()
+  }, [chat.state.phase, invalidateHistory, invalidateConversations])
 
   useEffect(() => {
     const mql = window.matchMedia(MOBILE_QUERY)
@@ -56,12 +97,40 @@ export function ChatPage() {
     chat.send(pendingUser.text)
   }
 
+  async function handleDeleteTurn(userMessageId: string) {
+    try {
+      await deleteMessage(userMessageId)
+    } catch {
+      // Surfaced via the conversation reload on next invalidate; for now we
+      // just refresh and let the row reappear if delete failed.
+    }
+    await invalidateHistory()
+    await invalidateConversations()
+  }
+
+  // Only show the live MessageList branch when there's something live to show
+  // (current send in flight, error pill, or a brand-new conversation we
+  // haven't yet hydrated). After invalidate, history owns the just-finished
+  // turn and we don't double-render it.
+  const liveTurnAlreadyInHistory = Boolean(
+    liveUserId && turns.some((t) => t.user.id === liveUserId),
+  )
+  const showLiveBranch =
+    chat.state.phase !== 'idle' && !liveTurnAlreadyInHistory
+
+  // Clear the optimistic bubble only after history has caught up — otherwise
+  // the bubble vanishes between the metadata frame and the next /api/
+  // conversations/:id round-trip.
+  useEffect(() => {
+    if (liveTurnAlreadyInHistory) setPendingUser(null)
+  }, [liveTurnAlreadyInHistory])
+
   return (
     <div className="rx-shell" style={{ display: 'flex', minHeight: '100vh' }}>
       <Sidebar
         conversations={conversations}
-        loading={loading}
-        error={error}
+        loading={conversationsLoading}
+        error={conversationsError}
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((c) => !c)}
         onNewChat={() => {
@@ -69,7 +138,7 @@ export function ChatPage() {
           if (isMobileViewport()) setSidebarCollapsed(true)
         }}
         onDelete={async (id) => {
-          const result = await deleteConversation(id)
+          const result = await deleteConversationApi(id)
           if (result.ok && routeConversationId === id) {
             navigate('/')
           }
@@ -101,7 +170,28 @@ export function ChatPage() {
             width: '100%',
           }}
         >
-          <MessageList state={chat.state} pendingUser={pendingUser} onRetry={handleRetry} />
+          {hydratingHistory && <LoadingSkeleton />}
+
+          {!hydratingHistory &&
+            turns.map((turn) => (
+              <div
+                key={turn.user.id}
+                style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+              >
+                <UserMessage text={turn.user.text} />
+                {turn.assistant && (
+                  <AssistantMessage
+                    assistant={turn.assistant}
+                    phase="done"
+                    onDeleteTurn={() => handleDeleteTurn(turn.user.id)}
+                  />
+                )}
+              </div>
+            ))}
+
+          {showLiveBranch && (
+            <MessageList state={chat.state} pendingUser={pendingUser} onRetry={handleRetry} />
+          )}
         </div>
         <div style={{ padding: '0 32px 32px', maxWidth: 760, margin: '0 auto', width: '100%' }}>
           <Composer

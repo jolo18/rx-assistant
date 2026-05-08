@@ -8,6 +8,7 @@
  * history doesn't have access to step.reason or the terminal error code.
  */
 
+import { useState } from 'react'
 import type { AssistantMessageInProgress } from '../hooks/useChatStream'
 import type { ErrorCode } from '../lib/chat-events'
 import { AnswerBody } from './AnswerBody'
@@ -27,6 +28,11 @@ type AssistantMessageProps = {
   errorCode?: ErrorCode
   errorMessage?: string
   onRetry?: () => void
+  /**
+   * Fired when the user confirms deletion of this turn. Backend deletes the
+   * turn's user-message id which cascades through the rest of the turn.
+   */
+  onDeleteTurn?: () => void | Promise<void>
 }
 
 export function AssistantMessage({
@@ -36,7 +42,10 @@ export function AssistantMessage({
   errorCode,
   errorMessage,
   onRetry,
+  onDeleteTurn,
 }: AssistantMessageProps) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const settled = phase !== 'streaming'
   const hasReasoning = assistant.reasoning.text.length > 0
   const lastStep = assistant.steps.at(-1)
@@ -97,6 +106,18 @@ export function AssistantMessage({
                 : undefined
             }
             cost={assistant.metadata.costUsd}
+            showMenu={menuOpen}
+            confirmingDelete={confirming}
+            onMore={() => setMenuOpen((o) => !o)}
+            onDelete={() => {
+              setMenuOpen(false)
+              setConfirming(true)
+            }}
+            onCancelDelete={() => setConfirming(false)}
+            onConfirmDelete={async () => {
+              setConfirming(false)
+              await onDeleteTurn?.()
+            }}
           />
         )}
       </div>
