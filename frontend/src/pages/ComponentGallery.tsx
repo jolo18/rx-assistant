@@ -8,6 +8,9 @@
 import type { ReactNode } from 'react'
 import type { ErrorCode } from '../lib/chat-events'
 
+import { useState } from 'react'
+
+import { AudioPlayer } from '../components/AudioPlayer'
 import { Caret } from '../components/Caret'
 import { FirstTokenIndicator } from '../components/FirstTokenIndicator'
 import { UserMessage } from '../components/UserMessage'
@@ -19,6 +22,7 @@ import { CappedNotice } from '../components/CappedNotice'
 import { ErrorPill } from '../components/ErrorPill'
 import { LoadingSkeleton } from '../components/LoadingSkeleton'
 import { PromptSuggestions } from '../components/PromptSuggestions'
+import { useTts } from '../hooks/useTts'
 
 const ALL_ERROR_CODES: ErrorCode[] = [
   'UPSTREAM_TIMEOUT',
@@ -175,6 +179,10 @@ export function ComponentGallery() {
         </Stack>
       </Section>
 
+      <Section title="AudioPlayer — compact + full">
+        <AudioPlayerLiveDemo />
+      </Section>
+
       <Section title="LoadingSkeleton (S-8)">
         <LoadingSkeleton />
       </Section>
@@ -233,5 +241,51 @@ function Labeled({ label, children }: { label: string; children: ReactNode }) {
       </span>
       {children}
     </div>
+  )
+}
+
+/**
+ * Live demo: clicking play actually speaks the text via the OS TTS engine.
+ * State (status, charIndex, totalChars) drives the AudioPlayer's `playing`
+ * + `progress` props.
+ */
+function AudioPlayerLiveDemo() {
+  const tts = useTts()
+  const [text] = useState(
+    'Lisinopril is an ACE inhibitor used primarily to treat high blood pressure ' +
+      'and heart failure, and to improve survival after a heart attack.',
+  )
+  const isSpeaking = tts.state.status === 'speaking'
+  const isPaused = tts.state.status === 'paused'
+  const progress =
+    (tts.state.status === 'speaking' || tts.state.status === 'paused') &&
+    tts.state.totalChars > 0
+      ? tts.state.charIndex / tts.state.totalChars
+      : 0
+
+  function toggle() {
+    if (tts.state.status === 'idle' || tts.state.status === 'unsupported' || tts.state.status === 'error') {
+      tts.play(text)
+    } else if (isPaused) {
+      tts.resume()
+    } else if (isSpeaking) {
+      tts.pause()
+    }
+  }
+
+  return (
+    <Stack>
+      <Labeled label={`status: ${tts.state.status}`}>
+        <AudioPlayer variant="compact" playing={isSpeaking} progress={progress} onPlayPause={toggle} />
+      </Labeled>
+      <Labeled label="full variant (read-only scrub)">
+        <AudioPlayer variant="full" playing={isSpeaking} progress={progress} onPlayPause={toggle} />
+      </Labeled>
+      {tts.state.status === 'unsupported' && (
+        <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+          (speechSynthesis not exposed in this browser)
+        </span>
+      )}
+    </Stack>
   )
 }
