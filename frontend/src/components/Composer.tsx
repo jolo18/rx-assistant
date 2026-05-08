@@ -1,6 +1,6 @@
-import type { KeyboardEvent } from 'react'
+import { useEffect, useState, type KeyboardEvent } from 'react'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
-import { Lock, Mic, Send, Speaker, SpeakerOff, Stop } from './icons'
+import { Alert, Lock, Mic, Send, Speaker, SpeakerOff, Stop, X } from './icons'
 
 export type ComposerPhase = 'idle' | 'submitting' | 'streaming' | 'done' | 'error'
 
@@ -48,6 +48,15 @@ export function Composer({
   const micDisabled =
     speech.state.phase === 'unsupported' || speech.state.phase === 'denied'
   const micTooltip = MIC_TOOLTIPS[speech.state.phase] ?? MIC_TOOLTIPS.idle
+
+  // Mic-denied banner is dismissable, but we re-arm it as soon as the user
+  // re-grants permission (state flips out of 'denied') so a future deny
+  // surfaces cleanly.
+  const [bannerDismissed, setBannerDismissed] = useState(false)
+  useEffect(() => {
+    if (speech.state.phase !== 'denied') setBannerDismissed(false)
+  }, [speech.state.phase])
+  const showDeniedBanner = speech.state.phase === 'denied' && !bannerDismissed
 
   function tryOnSubmit() {
     if (!canSubmit) return
@@ -129,6 +138,24 @@ export function Composer({
             )}
           </button>
         </div>
+      </div>
+      <div className="rx-composer__bannerrow">
+        {showDeniedBanner && (
+          <div className="rx-banner rx-banner--warn" role="alert">
+            <Alert size={14} />
+            <span className="t-body-sm">
+              Microphone permission denied. Enable mic access in browser settings to use voice input.
+            </span>
+            <button
+              type="button"
+              className="rx-banner__close"
+              aria-label="Dismiss"
+              onClick={() => setBannerDismissed(true)}
+            >
+              <X size={12} />
+            </button>
+          </div>
+        )}
       </div>
       <p className="rx-composer__disclaimer t-caption">
         Informational only — not medical advice. Confirm anything important with a clinician.

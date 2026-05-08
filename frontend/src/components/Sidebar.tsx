@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import type { ApiError, ConversationSummary } from '../lib/api'
 import { Edit, More, Plus, Sidebar as SidebarIcon, Trash } from './icons'
@@ -26,7 +26,29 @@ export function Sidebar({
   onDelete,
 }: SidebarProps) {
   const { id: activeId } = useParams<{ id: string }>()
-  const [confirmingId, setConfirmingId] = useState<string | null>(null)
+  // Which conversation's row-action menu is open. null = none.
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
+  // Close-on-outside-click + Esc-to-close. Only registers handlers while a
+  // menu is actually open, so closed-state has zero listener overhead.
+  useEffect(() => {
+    if (openMenuId === null) return
+    const onDocClick = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) {
+        setOpenMenuId(null)
+      }
+    }
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenMenuId(null)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onEsc)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onEsc)
+    }
+  }, [openMenuId])
 
   if (collapsed) {
     return (
@@ -96,7 +118,7 @@ export function Sidebar({
         {!error &&
           conversations.map((c) => {
             const active = c.id === activeId
-            const isConfirming = confirmingId === c.id
+            const isMenuOpen = openMenuId === c.id
             return (
               <Link
                 key={c.id}
@@ -108,33 +130,37 @@ export function Sidebar({
                 <span className="rx-conv__time t-caption">
                   {formatRelative(c.updatedAt)}
                 </span>
-                {isConfirming ? (
-                  <ConfirmDelete
-                    onCancel={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      setConfirmingId(null)
-                    }}
-                    onConfirm={async (e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      await onDelete(c.id)
-                      setConfirmingId(null)
-                    }}
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    className="rx-conv__more"
-                    aria-label={`Delete ${c.title ?? 'conversation'}`}
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      setConfirmingId(c.id)
-                    }}
-                  >
-                    <More size={14} />
-                  </button>
+                <button
+                  type="button"
+                  className="rx-conv__more"
+                  aria-label={`Actions for ${c.title ?? 'conversation'}`}
+                  aria-haspopup="menu"
+                  aria-expanded={isMenuOpen}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setOpenMenuId(isMenuOpen ? null : c.id)
+                  }}
+                >
+                  <More size={14} />
+                </button>
+                {isMenuOpen && (
+                  <div className="rx-menu" role="menu" ref={menuRef}>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="rx-menu__item rx-menu__item--danger"
+                      onClick={async (e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setOpenMenuId(null)
+                        await onDelete(c.id)
+                      }}
+                    >
+                      <Trash size={14} />
+                      <span className="t-label">Delete</span>
+                    </button>
+                  </div>
                 )}
               </Link>
             )
@@ -146,32 +172,6 @@ export function Sidebar({
         <span className="t-caption">Single-user · informational only</span>
       </div>
     </aside>
-  )
-}
-
-type ConfirmDeleteProps = {
-  onCancel: (e: React.MouseEvent) => void
-  onConfirm: (e: React.MouseEvent) => void | Promise<void>
-}
-
-function ConfirmDelete({ onCancel, onConfirm }: ConfirmDeleteProps) {
-  return (
-    <span className="rx-confirm" onClick={(e) => e.stopPropagation()}>
-      <button
-        type="button"
-        className="rx-confirm__btn"
-        onClick={onCancel}
-      >
-        Cancel
-      </button>
-      <button
-        type="button"
-        className="rx-confirm__btn rx-confirm__btn--danger"
-        onClick={onConfirm}
-      >
-        <Trash size={12} /> Delete
-      </button>
-    </span>
   )
 }
 
