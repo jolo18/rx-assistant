@@ -1,11 +1,14 @@
 /**
- * Keyboard tab order through the composer:
- *   textarea → mic (if supported) → TTS toggle → Send
+ * Keyboard tab order through the composer (2-button rule).
  *
- * Phase 3 lifted the mic and TTS `disabled` states, so they're now real
- * tab stops. The test below installs no SpeechRecognition mock — mic
- * stays `unsupported` (disabled) — so the only enabled buttons are TTS
- * and Send. Tab order under those conditions: textarea → TTS → Send.
+ * The right slot in the actions row swaps based on draft state:
+ *   - empty draft → mic + TTS toggle
+ *   - non-empty draft → mic + Send
+ *
+ * The mic stays disabled in this test env (no SpeechRecognition global), so
+ * focus skips it and lands on the lone right-slot button. Tab order:
+ *   - empty: textarea → TTS
+ *   - non-empty: textarea → Send
  */
 
 import { describe, expect, test } from 'vitest'
@@ -14,13 +17,13 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { Composer } from '../../src/components/Composer'
 
-function Harness({ initialValue = 'hi' }: { initialValue?: string }) {
+function Harness({ initialValue = '' }: { initialValue?: string }) {
   const [value, setValue] = useState(initialValue)
   return <Composer value={value} onChange={setValue} onSubmit={() => {}} phase="idle" />
 }
 
 describe('Composer keyboard navigation', () => {
-  test('Tab from textarea advances through TTS to Send (mic disabled in this env)', async () => {
+  test('empty draft: Tab from textarea lands on the TTS toggle', async () => {
     const user = userEvent.setup()
     render(<Harness />)
     const ta = screen.getByPlaceholderText(/medication or a symptom/i)
@@ -29,19 +32,23 @@ describe('Composer keyboard navigation', () => {
 
     await user.tab()
     expect(screen.getByRole('button', { name: /enable spoken replies/i })).toHaveFocus()
+  })
+
+  test('non-empty draft: Tab from textarea lands on Send', async () => {
+    const user = userEvent.setup()
+    render(<Harness initialValue="hi" />)
+    const ta = screen.getByPlaceholderText(/medication or a symptom/i)
+    ta.focus()
 
     await user.tab()
     expect(screen.getByRole('button', { name: /^send$/i })).toHaveFocus()
   })
 
-  test('Shift+Tab walks Send → TTS → textarea', async () => {
+  test('Shift+Tab walks Send → textarea (no TTS in tab order with text present)', async () => {
     const user = userEvent.setup()
-    render(<Harness />)
+    render(<Harness initialValue="hi" />)
     const send = screen.getByRole('button', { name: /^send$/i })
     send.focus()
-
-    await user.tab({ shift: true })
-    expect(screen.getByRole('button', { name: /enable spoken replies/i })).toHaveFocus()
 
     await user.tab({ shift: true })
     expect(screen.getByPlaceholderText(/medication or a symptom/i)).toHaveFocus()
@@ -53,7 +60,8 @@ describe('Composer keyboard navigation', () => {
     const ta = screen.getByPlaceholderText(/medication or a symptom/i)
     ta.focus()
     await user.tab()
-    // After one Tab, focus skipped the unsupported mic and landed on TTS.
+    // After one Tab, focus skipped the unsupported mic and landed on the
+    // right-slot button (TTS, since draft is empty).
     expect(screen.getByRole('button', { name: /enable spoken replies/i })).toHaveFocus()
     expect(screen.getByRole('button', { name: /voice input/i })).not.toHaveFocus()
   })

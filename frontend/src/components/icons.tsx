@@ -79,6 +79,15 @@ export const SpeakerOff = makeIcon(
   </>,
 )
 
+// Audio-wave glyph used by the Composer's TTS toggle (replaces the speaker
+// silhouette on the empty-state composer). Five vertical lines, centered,
+// varying heights — the OpenAI / ChatGPT voice-mode shorthand.
+export const SoundWave = makeIcon(
+  <>
+    <path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4" />
+  </>,
+)
+
 export const ChevronDown = makeIcon(
   <>
     <path d="M6 9l6 6 6-6" />

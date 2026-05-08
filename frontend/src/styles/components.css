@@ -980,10 +980,13 @@
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent-primary) 18%, transparent);
 }
 
+/* Vertical layout — textarea on top, full width; actions row aligned right
+ * below it. Mirrors ChatGPT's mobile-first composer pattern, which keeps
+ * the typing area uncluttered until input grows. */
 .rx-composer__inputwrap {
   display: flex;
-  align-items: flex-end;
-  gap: var(--s-2);
+  flex-direction: column;
+  gap: var(--s-1);
 }
 
 .rx-composer__input {
@@ -1024,6 +1027,7 @@
 .rx-composer__actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--s-1);
 }
 
@@ -1586,24 +1590,32 @@
 
 /* ╭─────────────────────── Theme toggle ─────────────────────╮ */
 
+/* Foot row, not a card: transparent by default so it sits with the
+ * "Single-user · informational only" caption below it instead of competing
+ * with the conversation rows above. Hover lights up the same muted surface
+ * the conv rows use. */
 .rx-themetoggle {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 6px 8px;
   border-radius: var(--r-md);
-  background: var(--bg-canvas);
-  color: var(--text-primary);
-  border: var(--el-1);
+  background: transparent;
+  color: var(--text-secondary);
+  border: 0;
   font-family: "Inter", system-ui, sans-serif;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-std);
+  transition: background var(--dur-fast) var(--ease-std),
+              color var(--dur-fast) var(--ease-std);
 }
 
-.rx-themetoggle:hover { background: var(--bg-surface-raised); }
+.rx-themetoggle:hover {
+  background: var(--bg-surface-raised);
+  color: var(--text-primary);
+}
 
 /* In the collapsed sidebar strip, render as a square icon-only chip so it
  * fits the 56px column. */
