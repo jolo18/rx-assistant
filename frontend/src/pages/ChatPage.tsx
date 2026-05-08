@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AssistantMessage } from '../components/AssistantMessage'
 import { Composer } from '../components/Composer'
@@ -40,6 +40,14 @@ export function ChatPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => isMobileViewport())
   const [isMobile, setIsMobile] = useState(() => isMobileViewport())
   const { ttsOn, toggle: toggleTts } = useTtsPreference()
+
+  // Scroll-stick state for auto-following the streamed answer.
+  // - `scrollRef` is the scrollable column (pinned via callback so the
+  //   listener installs as soon as the node mounts).
+  // - `stickToBottom` flips off the moment the user scrolls up, and back on
+  //   when they scroll back to within 80 px of the bottom.
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const stickToBottom = useRef(true)
 
   // Drop the optimistic bubble when the user navigates to a different
   // conversation, so we don't render a previous conversation's pending
@@ -97,6 +105,34 @@ export function ChatPage() {
     mql.addEventListener('change', onChange)
     return () => mql.removeEventListener('change', onChange)
   }, [])
+
+  // Track whether the user is currently "pinned" to the bottom of the
+  // scroll column. We re-arm pinning whenever they scroll back to within
+  // 80 px of the bottom — that gives a forgiving threshold so a small
+  // overshoot doesn't unstick auto-follow.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const onScroll = () => {
+      const slack = el.scrollHeight - el.clientHeight - el.scrollTop
+      stickToBottom.current = slack < 80
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // While the stream is producing text, keep the column pinned to the
+  // bottom so the latest token is always in view. Reading both phase and
+  // a coarse "size" of the live state from chat.state means the effect
+  // re-runs on each text-delta dispatch (state identity changes per
+  // reducer step), and we read scrollHeight after React has flushed the
+  // new content.
+  useEffect(() => {
+    if (chat.state.phase !== 'streaming' && chat.state.phase !== 'submitting') return
+    const el = scrollRef.current
+    if (!el || !stickToBottom.current) return
+    el.scrollTop = el.scrollHeight
+  })
 
   function handleSubmit(text: string) {
     const { tempUserMessageId } = chat.send(text)
@@ -183,6 +219,7 @@ export function ChatPage() {
           onNewChat={() => navigate('/')}
         />
         <div
+          ref={scrollRef}
           style={{
             flex: 1,
             overflowY: 'auto',

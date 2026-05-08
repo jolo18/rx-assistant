@@ -311,9 +311,18 @@
   border-top: var(--el-1);
   flex: 0 0 auto;
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--s-2);
+}
+
+/* The "Single-user · informational only" caption sits to the right of the
+ * theme toggle. On the narrowest sidebar width it can wrap — let it. */
+.rx-sidebar__foot > .t-caption {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
 }
 
 .rx-sidebar--collapsed {
@@ -539,7 +548,7 @@
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  padding: 12px 16px;
+  padding: 12px 26px;
   width: 100%;
   text-align: left;
   color: var(--text-secondary);
@@ -631,7 +640,7 @@
   align-items: center;
   gap: var(--s-2);
   height: 32px;
-  padding: 0 14px 0 12px;
+  padding: 0 24px 0 22px;
   border-radius: var(--r-pill);
   border: 1px solid;
   font-family: var(--font-sans);
@@ -886,6 +895,14 @@
   opacity: 1;
 }
 
+/* Touch surfaces don't fire :hover; leave the actions affordance always
+ * visible on mobile so the message Delete is reachable. */
+@media (max-width: 720px) {
+  .rx-mfooter__more {
+    opacity: 1;
+  }
+}
+
 .rx-mfooter__more:hover {
   background: var(--bg-surface-raised);
   color: var(--text-primary);
@@ -938,7 +955,7 @@
   color: var(--tool-warn-fg);
   background: var(--tool-warn-bg);
   border: 1px solid var(--tool-warn-bd);
-  padding: 6px 12px;
+  padding: 6px 22px;
   border-radius: var(--r-pill);
   align-self: flex-start;
 }
@@ -952,9 +969,19 @@
   color: var(--error-fg);
   background: var(--error-bg);
   border: 1px solid var(--error-bd);
-  padding: 10px 14px;
+  padding: 10px 24px;
   border-radius: var(--r-md);
   align-self: flex-start;
+}
+
+/* Pill horizontal padding scales down on mobile so the pills don't run
+ * past the column at narrow viewports. Per UX request: 10 px desktop,
+ * 5 px mobile (additive over the design's tight 12-14 px baseline). */
+@media (max-width: 720px) {
+  .rx-tool__pill { padding: 0 19px 0 17px; }
+  .rx-reasoning__head { padding: 12px 21px; }
+  .rx-capped { padding: 6px 17px; }
+  .rx-errorpill { padding: 10px 19px; }
 }
 
 .rx-errorpill__retry {
