@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Copy, More, Trash } from './icons'
+import { Copy, More } from './icons'
 
 type MessageFooterProps = {
   time?: string
@@ -10,15 +10,12 @@ type MessageFooterProps = {
   cost: number
   capped?: boolean
   showMenu?: boolean
-  /** When true, replaces the menu with an inline Cancel / Delete confirm row. */
-  confirmingDelete?: boolean
+  /** When true, shows a transient "Copied" caption next to the actions button. */
+  copied?: boolean
   onMore?: () => void
   /** Outside-click / Esc dismiss. Called whenever the menu should close. */
   onCloseMenu?: () => void
   onCopy?: () => void
-  onDelete?: () => void
-  onConfirmDelete?: () => void
-  onCancelDelete?: () => void
 }
 
 const tokens = (n: number) => n.toLocaleString('en-US')
@@ -32,22 +29,15 @@ export function MessageFooter({
   cached,
   cost: costUsd,
   showMenu = false,
-  confirmingDelete = false,
+  copied = false,
   onMore,
   onCloseMenu,
   onCopy,
-  onDelete,
-  onConfirmDelete,
-  onCancelDelete,
 }: MessageFooterProps) {
-  const menuRef = useRef<HTMLDivElement | null>(null)
+  const menuRef = useRef<HTMLSpanElement | null>(null)
 
-  // Close the menu on click outside / Esc. Only registers handlers while
-  // the menu is actually visible so closed-state has zero listener cost.
-  // Skipped while the inline confirm row is showing — that state is
-  // dismissed via its explicit Cancel / Delete buttons.
   useEffect(() => {
-    if (!showMenu || confirmingDelete) return
+    if (!showMenu) return
     const onDocMouseDown = (e: MouseEvent) => {
       if (!menuRef.current?.contains(e.target as Node)) {
         onCloseMenu?.()
@@ -62,7 +52,7 @@ export function MessageFooter({
       document.removeEventListener('mousedown', onDocMouseDown)
       document.removeEventListener('keydown', onEsc)
     }
-  }, [showMenu, confirmingDelete, onCloseMenu])
+  }, [showMenu, onCloseMenu])
 
   return (
     <div className="rx-mfooter">
@@ -78,6 +68,11 @@ export function MessageFooter({
       </span>
       <span className="rx-mfooter__sep">·</span>
       <span className="t-caption">{cost(costUsd)}</span>
+      {copied && (
+        <span className="t-caption rx-mfooter__copied" role="status" aria-live="polite">
+          Copied
+        </span>
+      )}
       <span className="rx-mfooter__menuanchor" ref={menuRef}>
         <button
           type="button"
@@ -88,37 +83,13 @@ export function MessageFooter({
         >
           <More size={14} />
         </button>
-        {showMenu && !confirmingDelete && (
+        {showMenu && (
           <div className="rx-menu" role="menu">
             <button type="button" role="menuitem" className="rx-menu__item" onClick={onCopy}>
               <Copy size={14} />
               <span className="t-label">Copy</span>
             </button>
-            <button
-              type="button"
-              role="menuitem"
-              className="rx-menu__item rx-menu__item--danger"
-              onClick={onDelete}
-            >
-              <Trash size={14} />
-              <span className="t-label">Delete</span>
-            </button>
           </div>
-        )}
-        {confirmingDelete && (
-          <span className="rx-confirm" role="alertdialog" aria-label="Confirm delete turn">
-            <span className="t-caption rx-confirm__prompt">Delete this turn?</span>
-            <button type="button" className="rx-confirm__btn" onClick={onCancelDelete}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="rx-confirm__btn rx-confirm__btn--danger"
-              onClick={onConfirmDelete}
-            >
-              <Trash size={12} /> Delete
-            </button>
-          </span>
         )}
       </span>
     </div>

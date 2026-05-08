@@ -32,7 +32,8 @@ describe('MessageFooter', () => {
     rerender(<MessageFooter {...baseProps} showMenu />)
     expect(screen.getByRole('menu')).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /copy/i })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /delete/i })).toBeInTheDocument()
+    // Delete lives on the UserMessage menu now, not here.
+    expect(screen.queryByRole('menuitem', { name: /delete/i })).toBeNull()
   })
 
   test('formats sub-cent costs as <$0.0001', () => {
@@ -40,16 +41,16 @@ describe('MessageFooter', () => {
     expect(screen.getByText('<$0.0001')).toBeInTheDocument()
   })
 
-  test('fires onCopy / onDelete from menu items', async () => {
+  test('fires onCopy from menu item', async () => {
     const user = userEvent.setup()
     const onCopy = vi.fn()
-    const onDelete = vi.fn()
-    render(
-      <MessageFooter {...baseProps} showMenu onCopy={onCopy} onDelete={onDelete} />,
-    )
+    render(<MessageFooter {...baseProps} showMenu onCopy={onCopy} />)
     await user.click(screen.getByRole('menuitem', { name: /copy/i }))
-    await user.click(screen.getByRole('menuitem', { name: /delete/i }))
     expect(onCopy).toHaveBeenCalledTimes(1)
-    expect(onDelete).toHaveBeenCalledTimes(1)
+  })
+
+  test('shows transient "Copied" caption when copied=true', () => {
+    render(<MessageFooter {...baseProps} copied />)
+    expect(screen.getByText('Copied')).toBeInTheDocument()
   })
 })

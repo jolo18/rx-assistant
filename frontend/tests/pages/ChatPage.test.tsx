@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
@@ -57,6 +57,21 @@ const detailFixture = {
       position: 3,
       createdAt: '2026-05-08T00:00:03Z',
       usage: { inputTokens: 130, outputTokens: 30, model: 'sonnet-4.6', costUsd: 0.0009 },
+    },
+    {
+      id: 'u2',
+      role: 'user' as const,
+      content: 'And what about ibuprofen?',
+      position: 4,
+      createdAt: '2026-05-08T00:00:04Z',
+    },
+    {
+      id: 'a3',
+      role: 'assistant' as const,
+      content: [{ type: 'text' as const, text: 'Ibuprofen is an NSAID.' }],
+      position: 5,
+      createdAt: '2026-05-08T00:00:05Z',
+      usage: { inputTokens: 140, outputTokens: 20, model: 'sonnet-4.6', costUsd: 0.0008 },
     },
   ],
 }
@@ -155,7 +170,8 @@ describe('ChatPage — slice 16 hydration', () => {
     )
     expect(screen.getByText('What is lisinopril?')).toBeInTheDocument()
     expect(screen.getByText('drug_info')).toBeInTheDocument()
-    expect(screen.getByText('sonnet-4.6')).toBeInTheDocument()
+    // Both turns share the same model → assert at least one footer rendered.
+    expect(screen.getAllByText('sonnet-4.6').length).toBeGreaterThan(0)
     expect(screen.getByText(/130 in/)).toBeInTheDocument()
   })
 
@@ -169,7 +185,7 @@ describe('ChatPage — slice 16 hydration', () => {
     expect(screen.queryByText(/^0\.\ds$/)).toBeNull()
   })
 
-  test('MessageFooter Delete → confirm cycle → DELETE /api/messages/:id + history reloads', async () => {
+  test('UserMessage Delete on the first turn cascades to end → all turns gone after reload', async () => {
     let deleteCalled = false
     let getCalls = 0
     server.use(
@@ -177,8 +193,8 @@ describe('ChatPage — slice 16 hydration', () => {
       http.get(`${BASE}/api/conversations/c1`, () => {
         getCalls++
         if (getCalls === 1) return HttpResponse.json(detailFixture)
-        // Second call (post-delete) returns the same conversation with no
-        // messages — the deleted user-message cascaded the rest of the turn.
+        // Post-delete: deleting u1 cascades from that turn through end of
+        // conversation, so the message list is empty.
         return HttpResponse.json({ ...detailFixture, messages: [] })
       }),
       http.delete(`${BASE}/api/messages/u1`, () => {
@@ -189,22 +205,28 @@ describe('ChatPage — slice 16 hydration', () => {
 
     const user = userEvent.setup()
     mountAt('/c/c1')
+    // Both turns render initially.
     await waitFor(() =>
       expect(screen.getByText('Lisinopril is an ACE inhibitor.')).toBeInTheDocument(),
     )
+    expect(screen.getByText('Ibuprofen is an NSAID.')).toBeInTheDocument()
 
-    // Open the message-actions menu, click Delete, then confirm.
-    await user.click(screen.getByRole('button', { name: /message actions/i }))
+    // Open the actions menu on the FIRST user bubble, click Delete, then confirm.
+    const moreButtons = screen.getAllByRole('button', { name: /more actions/i })
+    await user.click(moreButtons[0]!)
     await user.click(screen.getByRole('menuitem', { name: /delete/i }))
-    expect(screen.getByRole('alertdialog', { name: /confirm delete turn/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('alertdialog', { name: /confirm delete from this turn/i }),
+    ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /^Delete$/ }))
 
     await waitFor(() => expect(deleteCalled).toBe(true))
     await waitFor(() => expect(getCalls).toBeGreaterThanOrEqual(2))
-    // After the reload, the persisted turn is gone.
+    // Cascade-to-end: BOTH turns are gone after the reload.
     await waitFor(() =>
       expect(screen.queryByText('Lisinopril is an ACE inhibitor.')).toBeNull(),
     )
+    expect(screen.queryByText('Ibuprofen is an NSAID.')).toBeNull()
   })
 
   test('Cancel in the confirm row dismisses without deleting', async () => {
@@ -220,11 +242,44 @@ describe('ChatPage — slice 16 hydration', () => {
     await waitFor(() =>
       expect(screen.getByText('Lisinopril is an ACE inhibitor.')).toBeInTheDocument(),
     )
-    await user.click(screen.getByRole('button', { name: /message actions/i }))
+    const moreButtons = screen.getAllByRole('button', { name: /more actions/i })
+    await user.click(moreButtons[0]!)
     await user.click(screen.getByRole('menuitem', { name: /delete/i }))
     await user.click(screen.getByRole('button', { name: /^cancel$/i }))
     expect(screen.queryByRole('alertdialog')).toBeNull()
     // Body still rendered
     expect(screen.getByText('Lisinopril is an ACE inhibitor.')).toBeInTheDocument()
+  })
+
+  test('Copy menu item writes the assistant answer to navigator.clipboard and shows "Copied"', async () => {
+    server.use(
+      http.get(`${BASE}/api/conversations`, () => HttpResponse.json([])),
+      http.get(`${BASE}/api/conversations/c1`, () => HttpResponse.json(detailFixture)),
+    )
+
+    // userEvent.setup() installs its own navigator.clipboard, so install
+    // the spy AFTER setup to make sure our handler hits it.
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      writable: true,
+      value: { writeText },
+    })
+
+    mountAt('/c/c1')
+    await waitFor(() =>
+      expect(screen.getByText('Lisinopril is an ACE inhibitor.')).toBeInTheDocument(),
+    )
+
+    // Click the FIRST assistant turn's actions button.
+    const moreButtons = screen.getAllByRole('button', { name: /message actions/i })
+    await user.click(moreButtons[0]!)
+    await user.click(screen.getByRole('menuitem', { name: /copy/i }))
+
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith('Lisinopril is an ACE inhibitor.'),
+    )
+    await waitFor(() => expect(screen.getAllByText('Copied').length).toBeGreaterThan(0))
   })
 })

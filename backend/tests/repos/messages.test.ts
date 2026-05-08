@@ -119,7 +119,7 @@ describe('messages repo', () => {
     expect(after[0]?.position).toBe(0)
   })
 
-  test('deleteUserTurn cascades through the rest of the turn (Step 0.6 §3)', () => {
+  test('deleteUserTurn on first turn cascades from that turn through end of conversation', () => {
     // Build:
     //   pos 0 user "q1"
     //   pos 1 assistant tool-call
@@ -150,8 +150,8 @@ describe('messages repo', () => {
       role: 'assistant',
       content: [{ type: 'text', text: 'a1' }],
     })
-    const u2 = messages.append({ conversationId: convId, role: 'user', content: 'q2' })
-    const a2 = messages.append({
+    messages.append({ conversationId: convId, role: 'user', content: 'q2' })
+    messages.append({
       conversationId: convId,
       role: 'assistant',
       content: [{ type: 'text', text: 'a2' }],
@@ -159,9 +159,55 @@ describe('messages repo', () => {
 
     messages.deleteUserTurn(u1.id)
 
+    // Cascade-to-end: every message at position >= u1.position is gone.
     const after = messages.loadHistory(convId)
-    expect(after.map((m) => m.id)).toEqual([u2.id, a2.id])
-    expect(after.map((m) => m.position)).toEqual([0, 1])
+    expect(after).toEqual([])
+  })
+
+  test('deleteUserTurn on a middle turn drops that turn + everything after, leaving earlier turns untouched', () => {
+    const u1 = messages.append({ conversationId: convId, role: 'user', content: 'q1' })
+    const a1 = messages.append({
+      conversationId: convId,
+      role: 'assistant',
+      content: [{ type: 'tool-call', toolCallId: 't1', toolName: 'x', input: {} }],
+    })
+    const tr1 = messages.append({
+      conversationId: convId,
+      role: 'tool',
+      content: [
+        {
+          type: 'tool-result',
+          toolCallId: 't1',
+          toolName: 'x',
+          output: { type: 'json', value: {} },
+        },
+      ],
+    })
+    const a1text = messages.append({
+      conversationId: convId,
+      role: 'assistant',
+      content: [{ type: 'text', text: 'a1' }],
+    })
+    const u2 = messages.append({ conversationId: convId, role: 'user', content: 'q2' })
+    messages.append({
+      conversationId: convId,
+      role: 'assistant',
+      content: [{ type: 'text', text: 'a2' }],
+    })
+    messages.append({ conversationId: convId, role: 'user', content: 'q3' })
+    messages.append({
+      conversationId: convId,
+      role: 'assistant',
+      content: [{ type: 'text', text: 'a3' }],
+    })
+
+    messages.deleteUserTurn(u2.id)
+
+    const after = messages.loadHistory(convId)
+    // Turn 1 stays; turns 2 & 3 are gone. Positions are NOT renumbered
+    // (we only ever cut the tail, so there's no gap to close).
+    expect(after.map((m) => m.id)).toEqual([u1.id, a1.id, tr1.id, a1text.id])
+    expect(after.map((m) => m.position)).toEqual([0, 1, 2, 3])
   })
 
   test('deleteUserTurn on non-user message id throws INVALID_TARGET', () => {
