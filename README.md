@@ -1,6 +1,6 @@
 # Rx Assistant
 
-A streaming agentic chat for healthcare information, built as a senior full-stack take-home (`ASSIGNMENT.md`). Two-tier app:
+A streaming agentic chat for healthcare information, built as a senior full-stack take-home (`ASSIGNMENT.md`). For the system at a glance — design decisions, schema, trade-offs, failure modes — see [`docs/architecture.md`](docs/architecture.md). Two-tier app:
 
 - **`backend/`** — Bun + Hono + Vercel AI SDK + OpenRouter, persisted in SQLite via Drizzle. Streams Server-Sent Events over `POST /api/chat` with reasoning, tool-call, text, and metadata frames.
 - **`frontend/`** — Vite + React 19 + TypeScript + react-router-dom v7. Consumes the SSE stream over `fetch + ReadableStream` (no `EventSource` — `POST` not supported), renders reasoning panels, tool pills, markdown answers, and message footers; same renderer drives both live streaming and historical replay.
