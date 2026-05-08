@@ -1,26 +1,25 @@
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useTheme } from './hooks/useTheme'
+import { ChatPage } from './pages/ChatPage'
 import { ComponentGallery } from './pages/ComponentGallery'
 
-function showGallery(): boolean {
-  if (!import.meta.env.DEV) return false
-  if (typeof window === 'undefined') return false
-  const { pathname, search } = window.location
-  return pathname.startsWith('/__components') || /[?&]gallery=1\b/.test(search)
-}
+const galleryEnabled = import.meta.env.DEV
 
 function App() {
   useTheme()
 
   return (
-    <>
+    <BrowserRouter>
       <ThemeToggle />
-      {showGallery() ? (
-        <ComponentGallery />
-      ) : (
-        <div className="rx-root" />
-      )}
-    </>
+      <Routes>
+        <Route path="/" element={<ChatPage />} />
+        <Route path="/c/:id" element={<ChatPage />} />
+        {galleryEnabled && (
+          <Route path="/__components" element={<ComponentGallery />} />
+        )}
+      </Routes>
+    </BrowserRouter>
   )
 }
 
