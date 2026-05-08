@@ -115,15 +115,39 @@ describe('Composer', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
-  test('TTS button is disabled with the phase-3 tooltip and clicking is a no-op', async () => {
+  test('TTS toggle: clicking forwards onToggleTts and updates icon + tooltip', async () => {
     const user = userEvent.setup()
-    const onSubmit = vi.fn()
-    render(<ControlledHarness initialValue="x" onSubmit={onSubmit} />)
-    const tts = screen.getByRole('button', { name: /spoken replies/i })
-    expect(tts).toBeDisabled()
-    expect(tts).toHaveAttribute('title', 'Spoken replies arrive in Phase 3')
+    const onToggleTts = vi.fn()
+
+    const { rerender } = render(
+      <ControlledHarness initialValue="x" onSubmit={() => {}} />,
+    )
+    // Wrap with a controlled ttsOn prop so we can toggle from the outside.
+    function Harness({ ttsOn }: { ttsOn: boolean }) {
+      const [v, setV] = useState('x')
+      return (
+        <Composer
+          value={v}
+          onChange={setV}
+          onSubmit={() => {}}
+          phase="idle"
+          ttsOn={ttsOn}
+          onToggleTts={onToggleTts}
+        />
+      )
+    }
+    rerender(<Harness ttsOn={false} />)
+    const tts = screen.getByRole('button', { name: /enable spoken replies/i })
+    expect(tts).not.toBeDisabled()
+    expect(tts).toHaveAttribute('title', 'Spoken replies off')
     await user.click(tts)
-    expect(onSubmit).not.toHaveBeenCalled()
+    expect(onToggleTts).toHaveBeenCalledTimes(1)
+
+    rerender(<Harness ttsOn />)
+    expect(screen.getByRole('button', { name: /disable spoken replies/i })).toHaveAttribute(
+      'title',
+      'Spoken replies on',
+    )
   })
 
   test('renders the disclaimer copy', () => {

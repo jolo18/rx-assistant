@@ -1,6 +1,6 @@
 import type { KeyboardEvent } from 'react'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
-import { Lock, Mic, Send, SpeakerOff, Stop } from './icons'
+import { Lock, Mic, Send, Speaker, SpeakerOff, Stop } from './icons'
 
 export type ComposerPhase = 'idle' | 'submitting' | 'streaming' | 'done' | 'error'
 
@@ -11,9 +11,10 @@ type ComposerProps = {
   phase?: ComposerPhase
   /** Visual focus class hint (the textarea owns real focus). */
   focused?: boolean
+  /** Auto-play settled assistant responses through Web Speech Synthesis. */
+  ttsOn?: boolean
+  onToggleTts?: () => void
 }
-
-const TTS_TOOLTIP = 'Spoken replies arrive in Phase 3'
 
 const MIC_TOOLTIPS = {
   idle: 'Voice input',
@@ -29,6 +30,8 @@ export function Composer({
   onSubmit,
   phase = 'idle',
   focused = false,
+  ttsOn = false,
+  onToggleTts,
 }: ComposerProps) {
   const submitting = phase === 'submitting'
   const streaming = phase === 'streaming'
@@ -103,12 +106,13 @@ export function Composer({
           </button>
           <button
             type="button"
-            className="rx-composer__btn rx-composer__tts"
-            aria-label="Spoken replies"
-            title={TTS_TOOLTIP}
-            disabled
+            className={'rx-composer__btn rx-composer__tts' + (ttsOn ? ' is-on' : '')}
+            aria-label={ttsOn ? 'Disable spoken replies' : 'Enable spoken replies'}
+            aria-pressed={ttsOn}
+            title={ttsOn ? 'Spoken replies on' : 'Spoken replies off'}
+            onClick={onToggleTts}
           >
-            <SpeakerOff size={16} />
+            {ttsOn ? <Speaker size={16} /> : <SpeakerOff size={16} />}
           </button>
           <button
             type="button"

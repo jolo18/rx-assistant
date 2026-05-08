@@ -13,9 +13,11 @@ type MessageListProps = {
   state: ChatStreamState
   pendingUser: { id: string; text: string } | null
   onRetry?: () => void
+  /** When true, settled assistant messages auto-play via Web Speech Synthesis. */
+  ttsOn?: boolean
 }
 
-export function MessageList({ state, pendingUser, onRetry }: MessageListProps) {
+export function MessageList({ state, pendingUser, onRetry, ttsOn = false }: MessageListProps) {
   const showFirstToken =
     state.phase === 'submitting' ||
     (state.phase === 'streaming' && state.assistant.text === '' && state.assistant.toolCalls.length === 0)
@@ -29,7 +31,7 @@ export function MessageList({ state, pendingUser, onRetry }: MessageListProps) {
       )}
 
       {state.phase === 'done' && (
-        <AssistantMessage assistant={state.assistant} phase="done" liveCapped />
+        <AssistantMessage assistant={state.assistant} phase="done" liveCapped ttsOn={ttsOn} />
       )}
 
       {state.phase === 'error' && (

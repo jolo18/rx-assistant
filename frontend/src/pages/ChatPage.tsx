@@ -10,6 +10,7 @@ import { UserMessage } from '../components/UserMessage'
 import { useChatStreamContext } from '../hooks/chatStreamContext'
 import { useConversation } from '../hooks/useConversation'
 import { useConversations } from '../hooks/useConversations'
+import { useTtsPreference } from '../hooks/useTtsPreference'
 import { deleteMessage } from '../lib/api'
 import { groupIntoTurns, type Turn } from '../lib/turns'
 
@@ -38,6 +39,7 @@ export function ChatPage() {
   const [pendingUser, setPendingUser] = useState<{ id: string; text: string } | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => isMobileViewport())
   const [isMobile, setIsMobile] = useState(() => isMobileViewport())
+  const { ttsOn, toggle: toggleTts } = useTtsPreference()
 
   // Drop the optimistic bubble when the user navigates to a different
   // conversation, so we don't render a previous conversation's pending
@@ -209,13 +211,24 @@ export function ChatPage() {
                     assistant={turn.assistant}
                     phase="done"
                     onDeleteTurn={() => handleDeleteTurn(turn.user.id)}
+                    ttsOn={ttsOn}
+                    /* Historical turns: don't auto-play retroactively when
+                     * the user toggles TTS on while reading old messages.
+                     * Manual play button only. Live MessageList still
+                     * auto-plays the just-completed turn. */
+                    ttsAutoPlay={false}
                   />
                 )}
               </div>
             ))}
 
           {showLiveBranch && (
-            <MessageList state={chat.state} pendingUser={pendingUser} onRetry={handleRetry} />
+            <MessageList
+              state={chat.state}
+              pendingUser={pendingUser}
+              onRetry={handleRetry}
+              ttsOn={ttsOn}
+            />
           )}
         </div>
         <div style={{ padding: '0 32px 32px', maxWidth: 760, margin: '0 auto', width: '100%' }}>
@@ -224,6 +237,8 @@ export function ChatPage() {
             onChange={setDraft}
             onSubmit={handleSubmit}
             phase={chat.state.phase}
+            ttsOn={ttsOn}
+            onToggleTts={toggleTts}
           />
         </div>
       </main>

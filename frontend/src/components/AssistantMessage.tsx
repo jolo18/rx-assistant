@@ -8,10 +8,12 @@
  * history doesn't have access to step.reason or the terminal error code.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { AssistantMessageInProgress, ToolCallSlot } from '../hooks/useChatStream'
+import { useTts } from '../hooks/useTts'
 import type { ErrorCode, ToolResultOutput } from '../lib/chat-events'
 import { AnswerBody } from './AnswerBody'
+import { AudioPlayer } from './AudioPlayer'
 import { Caret } from './Caret'
 import { CappedNotice } from './CappedNotice'
 import { ErrorPill } from './ErrorPill'
@@ -33,6 +35,18 @@ type AssistantMessageProps = {
    * turn's user-message id which cascades through the rest of the turn.
    */
   onDeleteTurn?: () => void | Promise<void>
+  /**
+   * When true and `phase === 'done'`, mount <AudioPlayer> next to the footer
+   * and auto-play the assistant text via Web Speech Synthesis.
+   */
+  ttsOn?: boolean
+  /**
+   * When true (and ttsOn), the player kicks off speech automatically as soon
+   * as the message settles. Default true. The historical-replay path that
+   * doesn't want auto-play (e.g. retroactive toggle on a long page of past
+   * messages) passes `false` and gets a manual play button instead.
+   */
+  ttsAutoPlay?: boolean
 }
 
 export function AssistantMessage({
@@ -43,12 +57,38 @@ export function AssistantMessage({
   errorMessage,
   onRetry,
   onDeleteTurn,
+  ttsOn = false,
+  ttsAutoPlay = true,
 }: AssistantMessageProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
   // null = follow the auto-state (expanded while streaming, collapsed once
   // settled). true/false = user has explicitly toggled.
   const [reasoningOverride, setReasoningOverride] = useState<boolean | null>(null)
+
+  const tts = useTts()
+  // Track whether we've already auto-played for this messageId — we don't
+  // want to re-fire on every re-render of a settled turn.
+  const [autoPlayedFor, setAutoPlayedFor] = useState<string | null>(null)
+  useEffect(() => {
+    if (!ttsOn || !ttsAutoPlay) return
+    if (phase !== 'done') return
+    if (!assistant.text) return
+    if (autoPlayedFor === assistant.messageId) return
+    setAutoPlayedFor(assistant.messageId)
+    tts.play(assistant.text)
+    // tts.play is stable enough across renders (state-machine internals own
+    // their own refs); we intentionally exclude it from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ttsOn, ttsAutoPlay, phase, assistant.messageId, assistant.text, autoPlayedFor])
+
+  // When the consumer flips ttsOn off mid-utterance, stop playback.
+  useEffect(() => {
+    if (!ttsOn && tts.state.status === 'speaking') {
+      tts.stop()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ttsOn])
   const settled = phase !== 'streaming'
   const hasReasoning = assistant.reasoning.text.length > 0
   const lastStep = assistant.steps.at(-1)
@@ -98,6 +138,29 @@ export function AssistantMessage({
           <ErrorPill code={errorCode} message={errorMessage} onRetry={onRetry} />
         )}
 
+        {phase === 'done' && ttsOn && assistant.text && (
+          <AudioPlayerSlot
+            playing={tts.state.status === 'speaking'}
+            progress={
+              tts.state.status === 'speaking' || tts.state.status === 'paused'
+                ? tts.state.totalChars > 0
+                  ? tts.state.charIndex / tts.state.totalChars
+                  : 0
+                : 0
+            }
+            onPlayPause={() => {
+              if (tts.state.status === 'idle' || tts.state.status === 'error') {
+                tts.play(assistant.text)
+              } else if (tts.state.status === 'paused') {
+                tts.resume()
+              } else if (tts.state.status === 'speaking') {
+                tts.pause()
+              }
+            }}
+            unsupported={tts.state.status === 'unsupported'}
+          />
+        )}
+
         {phase === 'done' && assistant.metadata && (
           <MessageFooter
             model={assistant.metadata.model}
@@ -126,6 +189,21 @@ export function AssistantMessage({
       </div>
     </article>
   )
+}
+
+function AudioPlayerSlot({
+  playing,
+  progress,
+  onPlayPause,
+  unsupported,
+}: {
+  playing: boolean
+  progress: number
+  onPlayPause: () => void
+  unsupported: boolean
+}) {
+  if (unsupported) return null
+  return <AudioPlayer variant="compact" playing={playing} progress={progress} onPlayPause={onPlayPause} />
 }
 
 /**
