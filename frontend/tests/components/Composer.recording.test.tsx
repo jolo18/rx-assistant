@@ -130,4 +130,24 @@ describe('Composer mic wiring', () => {
     expect(mic).toHaveAttribute('title', expect.stringMatching(/permission denied/i))
     expect(container.querySelector('.rx-composer__mic.is-denied')).toBeInTheDocument()
   })
+
+  test('denied permission renders an explanatory banner with a dismiss button', async () => {
+    const rec = installRecMock()
+    const user = userEvent.setup()
+    render(<ControlledHarness />)
+    await user.click(screen.getByRole('button', { name: /voice input/i }))
+    await Promise.resolve()
+    act(() => {
+      rec.onerror?.({ error: 'not-allowed' })
+      rec.onend?.(new Event('end'))
+    })
+
+    const banner = screen.getByRole('alert')
+    expect(banner).toHaveTextContent(/microphone permission denied/i)
+    expect(banner).toHaveTextContent(/enable mic access in browser settings/i)
+
+    const dismiss = screen.getByRole('button', { name: /dismiss/i })
+    await user.click(dismiss)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
 })

@@ -288,6 +288,13 @@
   opacity: 1;
 }
 
+/* Mobile (no hover) — the 3-dot must always be tappable. */
+@media (max-width: 720px) {
+  .rx-conv__more {
+    opacity: 1;
+  }
+}
+
 .rx-conv__more:hover {
   background: var(--bg-canvas);
   color: var(--text-primary);

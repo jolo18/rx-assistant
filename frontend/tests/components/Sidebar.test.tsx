@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { Sidebar } from '../../src/components/Sidebar'
@@ -70,40 +70,48 @@ describe('Sidebar', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/Couldn't load/i)
   })
 
-  test('clicking the More button reveals an inline Cancel/Delete confirm', async () => {
+  test('clicking the More button opens a popup menu with a single Delete row', async () => {
     const user = userEvent.setup()
     renderWithRouter(<Sidebar conversations={fixture} onDelete={async () => {}} />)
 
-    // Initial: no confirm controls visible
-    expect(screen.queryByRole('button', { name: /^Cancel$/ })).toBeNull()
+    // Initial: no menu visible
+    expect(screen.queryByRole('menu')).toBeNull()
 
-    await user.click(screen.getByRole('button', { name: /Delete Lisinopril dosage/i }))
-    expect(screen.getByRole('button', { name: /^Cancel$/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Delete$/ })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Actions for Lisinopril dosage/i }))
+
+    const menu = screen.getByRole('menu')
+    expect(menu).toBeInTheDocument()
+    // Single-row policy — only Delete (no Rename / Pin / Archive surface).
+    const items = within(menu).getAllByRole('menuitem')
+    expect(items).toHaveLength(1)
+    expect(items[0]).toHaveTextContent(/delete/i)
   })
 
-  test('Cancel hides the confirm without firing onDelete', async () => {
+  test('clicking outside the menu closes it without firing onDelete', async () => {
     const user = userEvent.setup()
-    const onDelete = vi.fn().mockResolvedValue({ ok: true })
+    const onDelete = vi.fn()
     renderWithRouter(<Sidebar conversations={fixture} onDelete={onDelete} />)
 
-    await user.click(screen.getByRole('button', { name: /Delete Lisinopril dosage/i }))
-    await user.click(screen.getByRole('button', { name: /^Cancel$/ }))
+    await user.click(screen.getByRole('button', { name: /Actions for Lisinopril dosage/i }))
+    expect(screen.getByRole('menu')).toBeInTheDocument()
 
-    expect(screen.queryByRole('button', { name: /^Cancel$/ })).toBeNull()
+    // Click on the body / outside the menu via the document-level mousedown.
+    await user.click(document.body)
+
+    expect(screen.queryByRole('menu')).toBeNull()
     expect(onDelete).not.toHaveBeenCalled()
   })
 
-  test('Delete fires onDelete with the row id and dismisses the confirm', async () => {
+  test('clicking Delete in the menu fires onDelete with the row id and closes', async () => {
     const user = userEvent.setup()
     const onDelete = vi.fn().mockResolvedValue({ ok: true })
     renderWithRouter(<Sidebar conversations={fixture} onDelete={onDelete} />)
 
-    await user.click(screen.getByRole('button', { name: /Delete Lisinopril dosage/i }))
-    await user.click(screen.getByRole('button', { name: /^Delete$/ }))
+    await user.click(screen.getByRole('button', { name: /Actions for Lisinopril dosage/i }))
+    await user.click(screen.getByRole('menuitem', { name: /delete/i }))
 
     expect(onDelete).toHaveBeenCalledWith('c1')
-    expect(screen.queryByRole('button', { name: /^Cancel$/ })).toBeNull()
+    expect(screen.queryByRole('menu')).toBeNull()
   })
 
   test('collapsed variant renders open-sidebar + new-chat icons only', () => {

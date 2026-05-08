@@ -197,9 +197,13 @@ export function ChatPage() {
             minWidth: 0,
           }}
         >
-          {hydratingHistory && <LoadingSkeleton />}
+          {/* Show the skeleton ONLY on the initial fetch (no data yet).
+            * Subsequent invalidates (e.g. after a turn settles) keep the
+            * existing turns rendered so the scroll container's scrollTop
+            * is preserved instead of clamping to 0. */}
+          {hydratingHistory && conversation === null && <LoadingSkeleton />}
 
-          {!hydratingHistory &&
+          {!(hydratingHistory && conversation === null) &&
             turns.map((turn) => (
               <div
                 key={turn.user.id}
