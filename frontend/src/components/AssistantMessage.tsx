@@ -175,6 +175,7 @@ export function AssistantMessage({
             showMenu={menuOpen}
             confirmingDelete={confirming}
             onMore={() => setMenuOpen((o) => !o)}
+            onCloseMenu={() => setMenuOpen(false)}
             onDelete={() => {
               setMenuOpen(false)
               setConfirming(true)

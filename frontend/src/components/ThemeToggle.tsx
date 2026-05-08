@@ -10,9 +10,9 @@ export function ThemeToggle() {
       className="rx-themetoggle"
       onClick={toggle}
       aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+      title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
     >
       {isDark ? <Sun size={14} /> : <Moon size={14} />}
-      <span>{isDark ? 'Light' : 'Dark'} mode</span>
     </button>
   )
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
-import { Alert, Lock, Mic, Send, Speaker, SpeakerOff, Stop, X } from './icons'
+import { Alert, Lock, Mic, Send, SoundWave, Stop, X } from './icons'
 
 export type ComposerPhase = 'idle' | 'submitting' | 'streaming' | 'done' | 'error'
 
@@ -38,6 +38,10 @@ export function Composer({
   const locked = submitting || streaming
   const trimmed = value.trim()
   const canSubmit = trimmed.length > 0 && !locked
+  // 2-button rule: mic always visible. The right slot rotates between the
+  // TTS toggle (when the textarea is empty + idle) and the Send button (the
+  // moment the user types or while a request is in flight).
+  const showSend = trimmed.length > 0 || locked
 
   const speech = useSpeechRecognition({
     onTranscript: (text) => {
@@ -113,30 +117,33 @@ export function Composer({
               <Mic size={16} />
             )}
           </button>
-          <button
-            type="button"
-            className={'rx-composer__btn rx-composer__tts' + (ttsOn ? ' is-on' : '')}
-            aria-label={ttsOn ? 'Disable spoken replies' : 'Enable spoken replies'}
-            aria-pressed={ttsOn}
-            title={ttsOn ? 'Spoken replies on' : 'Spoken replies off'}
-            onClick={onToggleTts}
-          >
-            {ttsOn ? <Speaker size={16} /> : <SpeakerOff size={16} />}
-          </button>
-          <button
-            type="button"
-            className={'rx-composer__send' + (canSubmit ? ' is-active' : '')}
-            disabled={!canSubmit}
-            aria-label={locked ? 'Sending' : 'Send'}
-            title="Send"
-            onClick={tryOnSubmit}
-          >
-            {locked ? (
-              <span className="rx-composer__spin" aria-hidden="true" />
-            ) : (
-              <Send size={16} />
-            )}
-          </button>
+          {showSend ? (
+            <button
+              type="button"
+              className={'rx-composer__send' + (canSubmit ? ' is-active' : '')}
+              disabled={!canSubmit}
+              aria-label={locked ? 'Sending' : 'Send'}
+              title="Send"
+              onClick={tryOnSubmit}
+            >
+              {locked ? (
+                <span className="rx-composer__spin" aria-hidden="true" />
+              ) : (
+                <Send size={16} />
+              )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={'rx-composer__btn rx-composer__tts' + (ttsOn ? ' is-on' : '')}
+              aria-label={ttsOn ? 'Disable spoken replies' : 'Enable spoken replies'}
+              aria-pressed={ttsOn}
+              title={ttsOn ? 'Spoken replies on' : 'Spoken replies off'}
+              onClick={onToggleTts}
+            >
+              <SoundWave size={16} />
+            </button>
+          )}
         </div>
       </div>
       <div className="rx-composer__bannerrow">

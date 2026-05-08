@@ -18,11 +18,24 @@ function ControlledHarness({
 }
 
 describe('Composer', () => {
-  test('renders the textarea with placeholder + the three action buttons', () => {
+  test('empty draft renders the 2-button row: mic + TTS toggle (Send hidden)', () => {
     render(<ControlledHarness />)
     expect(screen.getByPlaceholderText(/medication or a symptom/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /voice input/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /spoken replies/i })).toBeInTheDocument()
+    // Send is hidden when the input is empty + idle — the TTS toggle owns
+    // that slot until the user starts typing.
+    expect(screen.queryByRole('button', { name: /^send$/i })).toBeNull()
+  })
+
+  test('typing swaps the right slot from TTS → Send (2-button rule)', async () => {
+    const user = userEvent.setup()
+    render(<ControlledHarness />)
+    expect(screen.getByRole('button', { name: /spoken replies/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^send$/i })).toBeNull()
+
+    await user.type(screen.getByPlaceholderText(/medication or a symptom/i), 'i')
+    expect(screen.queryByRole('button', { name: /spoken replies/i })).toBeNull()
     expect(screen.getByRole('button', { name: /^send$/i })).toBeInTheDocument()
   })
 
@@ -65,9 +78,9 @@ describe('Composer', () => {
     expect(onSubmit).toHaveBeenCalledWith('ibuprofen')
   })
 
-  test('Send is disabled when value is empty', () => {
+  test('Send is not rendered when value is empty (TTS owns the slot)', () => {
     render(<ControlledHarness initialValue="" />)
-    expect(screen.getByRole('button', { name: /^send$/i })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /^send$/i })).toBeNull()
   })
 
   test('Send is disabled while phase is submitting and shows a spinner', () => {
@@ -115,16 +128,15 @@ describe('Composer', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
-  test('TTS toggle: clicking forwards onToggleTts and updates icon + tooltip', async () => {
+  test('TTS toggle: clicking forwards onToggleTts and updates label + tooltip', async () => {
+    // The TTS toggle now only renders while the textarea is empty (the slot
+    // belongs to Send the moment text is present). Drive the test on an
+    // empty draft so the toggle is reachable.
     const user = userEvent.setup()
     const onToggleTts = vi.fn()
 
-    const { rerender } = render(
-      <ControlledHarness initialValue="x" onSubmit={() => {}} />,
-    )
-    // Wrap with a controlled ttsOn prop so we can toggle from the outside.
     function Harness({ ttsOn }: { ttsOn: boolean }) {
-      const [v, setV] = useState('x')
+      const [v, setV] = useState('')
       return (
         <Composer
           value={v}
@@ -136,7 +148,7 @@ describe('Composer', () => {
         />
       )
     }
-    rerender(<Harness ttsOn={false} />)
+    const { rerender } = render(<Harness ttsOn={false} />)
     const tts = screen.getByRole('button', { name: /enable spoken replies/i })
     expect(tts).not.toBeDisabled()
     expect(tts).toHaveAttribute('title', 'Spoken replies off')
